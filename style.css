@@ -291,6 +291,18 @@ body {
 #pt-player-tokens { color: #4fc3f7; letter-spacing: 2px; }
 #pt-enemy-tokens  { color: #ff6b6b; letter-spacing: 2px; }
 
+.pt-token          { font-size: 16px; margin: 0 2px; }
+.pt-token--full    { color: #f9e2af; }
+.pt-token--flash   { color: #f9e2af; animation: pt-blink 0.8s infinite; }
+.pt-token--empty   { color: #45475a; }
+
+@keyframes pt-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.btn-pass { background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: #fff; }
+
 /* ── 戰鬥面板 ─────────────────────────────────────────── */
 #combat-panel {
   width: 100%; max-width: 860px;
@@ -341,6 +353,30 @@ body {
   0%   { transform: translateY(0px) scale(1);   opacity: 1; }
   60%  { transform: translateY(-50px) scale(1.2); opacity: 1; }
   100% { transform: translateY(-90px) scale(0.9); opacity: 0; }
+}
+
+/* ── 傷害飄字提示 ─────────────────────────────────────── */
+.damage-popup {
+  position: absolute;
+  font-size: 15px;
+  font-weight: bold;
+  pointer-events: none;
+  z-index: 25;
+  animation: damage-float-up 1.3s ease-out forwards;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.9);
+  white-space: nowrap;
+  background: rgba(0,0,0,0.5);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.damage-popup--enemy  { color: #ff5555; }
+.damage-popup--player { color: #ffaa33; }
+
+@keyframes damage-float-up {
+  0%   { transform: translateY(0)     scale(1);    opacity: 1; }
+  20%  { transform: translateY(-14px) scale(1.15); opacity: 1; }
+  100% { transform: translateY(-72px) scale(0.85); opacity: 0; }
 }
 
 

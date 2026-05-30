@@ -264,6 +264,12 @@ function shuffle(arr) {
   }
 }
 
+// ── map.js 向下相容防衛宣告 ───────────────────────────────────
+if (typeof portals      === "undefined") { var portals      = {}; }
+if (typeof tileEnemyMap === "undefined") { var tileEnemyMap = {}; }
+if (typeof zoneEnemies  === "undefined") { var zoneEnemies  = { A: [], B: [], C: [] }; }
+
+
 // ── 全域遊戲狀態 ──────────────────────────────────────────────
 var player = { x: playerStart.x, y: playerStart.y };
 
@@ -281,13 +287,30 @@ var currentPlayer = {
   tempDef:   0     // 本場戰鬥臨時防禦加成
 };
 
-var currentMap = generateMaze();
+var currentMap = (typeof mapGrid !== "undefined" && Array.isArray(mapGrid) && mapGrid.length > 0)
+  ? mapGrid
+  : generateMaze();
+
+// 自訂 mapGrid：從 DOOR 磚自動偵測 A/B/C 分區邊界（currentMap 已就位後才掃）
+if (typeof mapGrid !== "undefined" && Array.isArray(mapGrid) && mapGrid.length > 0) {
+  var _doorXs = [];
+  for (var _dy = 0; _dy < currentMap.length; _dy++) {
+    for (var _dx = 0; _dx < currentMap[_dy].length; _dx++) {
+      if (currentMap[_dy][_dx] === MAP_TILE.DOOR && _doorXs.indexOf(_dx) === -1)
+        _doorXs.push(_dx);
+    }
+  }
+  _doorXs.sort(function(a, b) { return a - b; });
+  if (_doorXs.length >= 1) mazeDivX1 = _doorXs[0];
+  if (_doorXs.length >= 2) mazeDivX2 = _doorXs[_doorXs.length - 1];
+}
 
 var visitedTiles      = [];
 var currentEnemy      = null;
 var activeClones      = [];   // 同時存活的分身（玻璃大砲，一起行動）
 var savedBoss         = null; // 分身戰鬥期間暫存的 Boss 狀態
 var pairedFightEnemy  = null; // 雙人出場戰鬥的原始資料（用於結算獎勵）
+var _pairedAttackCursor = 0;  // 配對戰鬥中下一個攻擊的怪物索引
 var currentAllies     = [];   // 當前招募的同伴 [{id,name,icon,hp,maxHp,atk,defense,skill,skillCooldown,knockedOut}]
 var allyShieldActive  = false; // 聖騎士護盾是否生效（本回合）
 var knightTauntActive = false; // 聖騎士護衛是否生效（本回合，代替玩家承傷）
@@ -300,8 +323,10 @@ var STAT_CAP = { atk: 40, def: 25, hp: 160};
 var isPlayerDefending = false;
 var gameOver          = false;
 
-var playerTokensLeft = 0;
-var enemyTokensLeft  = 0;
+var playerFullTokens  = 0;  // ◆ 全點圖示
+var playerFlashTokens = 0;  // ◈ 閃爍圖示（半點）
+var enemyFullTokens   = 0;
+var enemyFlashTokens  = 0;
 
 var playerSkillCooldowns  = {};
 var playerAtkDebuffTurns  = 0;  // Boss 壓制技能：玩家攻擊力減半的剩餘回合數
@@ -371,6 +396,16 @@ function setCombatButtonsEnabled(enabled) {
     var btn = document.getElementById(ids[i]);
     if (btn) btn.disabled = !enabled;
   }
+  var passBtn = document.getElementById("btn-pass");
+  if (passBtn) {
+    if (COMBAT_MODE === "press_turn") {
+      passBtn.style.display = "";
+      // Pass 只能消耗 ◆ 全點圖示，◈ 閃爍圖示不可傳遞
+      passBtn.disabled = !enabled || playerFullTokens <= 0;
+    } else {
+      passBtn.style.display = "none";
+    }
+  }
   renderSkillButtons(enabled);
   renderInventoryButtons(enabled);
 }
@@ -381,6 +416,41 @@ function getSkillDef(id) {
     if (skillDefs[i].id === id) return skillDefs[i];
   }
   return null;
+}
+
+// 根據當前 ATK 值，將技能描述中的倍率轉換成具體數字
+function computeSkillDesc(def, atk) {
+  var a = atk || 0;
+  var cd = def.cooldown > 0 ? "冷卻 " + def.cooldown + " 回合" : "無冷卻";
+  switch (def.id) {
+    case "power_strike":
+      return "造成 " + (a * 2) + " 傷害（ATK×2，" + cd + "）";
+    case "heal_magic":
+      return "戰鬥中恢復 25 HP（" + cd + "）";
+    case "shield_bash":
+      return "防禦並造成 " + Math.max(1, Math.floor(a * 0.5)) + " 傷害（ATK×0.5，" + cd + "）";
+    case "berserk":
+      return "造成 " + (a * 3) + " 傷害，自損 15 HP（ATK×3，" + cd + "）";
+    case "chain_slash":
+      return "攻擊所有目標，各造成 " + Math.min(PLAYER_DMG_CAP, a) + " 傷害（上限 " + PLAYER_DMG_CAP + "，" + cd + "）";
+    default:
+      return def.desc;
+  }
+}
+
+// 根據同伴當前 ATK 值，將同伴技能描述轉換成具體數字
+function computeAllySkillDesc(skill, atk) {
+  var a = atk || 0;
+  var cd = "冷卻 " + skill.cooldown + " 回合";
+  if (skill.isAoe && skill.multiplier) {
+    var dmg = Math.max(1, Math.floor(a * skill.multiplier));
+    return "攻擊全體敵人各造成 " + dmg + " 傷害（ATK×" + skill.multiplier + "，" + cd + "）";
+  }
+  if (skill.multiplier && !skill.isTaunt && !skill.isShield) {
+    var dmg = Math.max(1, Math.floor(a * skill.multiplier));
+    return "對單體造成 " + dmg + " 傷害（ATK×" + skill.multiplier + "，" + cd + "）";
+  }
+  return skill.desc;
 }
 
 function renderSkillButtons(combatEnabled) {
@@ -395,7 +465,7 @@ function renderSkillButtons(combatEnabled) {
       var cd  = playerSkillCooldowns[skillId] || 0;
       var btn = document.createElement("button");
       btn.className = "btn btn-skill";
-      btn.title     = def.desc;
+      btn.title     = computeSkillDesc(def, currentPlayer.atk + (currentPlayer.tempAtk || 0));
       if (cd > 0) {
         btn.textContent = def.icon + " " + def.name + " (" + cd + ")";
         btn.disabled    = true;
@@ -671,22 +741,88 @@ function craftSkill(skillId) {
   openShop();
 }
 
+// ── Press Turn 圖示數量計算 ───────────────────────────────────
+function calcPlayerTokenCount() {
+  var n = 1;
+  for (var i = 0; i < currentAllies.length; i++) {
+    if (!currentAllies[i].knockedOut) n++;
+  }
+  return n;
+}
+
+function calcEnemyTokenCount() {
+  // 配對怪物戰鬥：每隻怪各得一個圖示（共 2 個），不加 BASE
+  if (pairedFightEnemy !== null && activeClones.length > 0) return activeClones.length;
+  var n = (typeof ENEMY_BASE_TOKENS !== "undefined") ? ENEMY_BASE_TOKENS : 1;
+  if (typeof activeClones !== "undefined") n += activeClones.length;
+  return n;
+}
+
+// ── Press Turn 圖示消耗 ───────────────────────────────────────
+function consumePlayerToken(bonusTurn, loseTurn) {
+  if (bonusTurn) {
+    if (playerFullTokens > 0) { playerFullTokens--; playerFlashTokens++; }
+    else if (playerFlashTokens > 0) { playerFlashTokens--; }
+  } else if (loseTurn) {
+    if (playerFlashTokens > 0) { playerFlashTokens--; }
+    else if (playerFullTokens > 0) { playerFullTokens--; }
+    if (playerFlashTokens > 0) { playerFlashTokens--; }
+    else if (playerFullTokens > 0) { playerFullTokens--; }
+  } else {
+    if (playerFlashTokens > 0) { playerFlashTokens--; }
+    else if (playerFullTokens > 0) { playerFullTokens--; }
+  }
+}
+
+function consumeEnemyToken(bonusTurn, loseTurn) {
+  if (bonusTurn) {
+    if (enemyFullTokens > 0) { enemyFullTokens--; enemyFlashTokens++; }
+    else if (enemyFlashTokens > 0) { enemyFlashTokens--; }
+  } else if (loseTurn) {
+    if (enemyFlashTokens > 0) { enemyFlashTokens--; }
+    else if (enemyFullTokens > 0) { enemyFullTokens--; }
+    if (enemyFlashTokens > 0) { enemyFlashTokens--; }
+    else if (enemyFullTokens > 0) { enemyFullTokens--; }
+  } else {
+    if (enemyFlashTokens > 0) { enemyFlashTokens--; }
+    else if (enemyFullTokens > 0) { enemyFullTokens--; }
+  }
+}
+
 // ── Press Turn 令牌顯示 ───────────────────────────────────────
 function updateTokenDisplay() {
   var ptDisplay = document.getElementById("press-turn-display");
   if (!ptDisplay) return;
-  var tokens  = (typeof PRESS_TURN_TOKENS !== "undefined") ? PRESS_TURN_TOKENS : 3;
   var playerEl = document.getElementById("pt-player-tokens");
   var enemyEl  = document.getElementById("pt-enemy-tokens");
+
+  function makeTokens(full, flash, capacity) {
+    var el = document.createElement("span");
+    for (var i = 0; i < capacity; i++) {
+      var sp = document.createElement("span");
+      sp.className = "pt-token";
+      if (i < full) {
+        sp.classList.add("pt-token--full");
+        sp.textContent = "◆";
+      } else if (i < full + flash) {
+        sp.classList.add("pt-token--flash");
+        sp.textContent = "◈";
+      } else {
+        sp.classList.add("pt-token--empty");
+        sp.textContent = "◇";
+      }
+      el.appendChild(sp);
+    }
+    return el;
+  }
+
   if (playerEl) {
-    var pStr = "玩家 ";
-    for (var i = 0; i < tokens; i++) pStr += (i < playerTokensLeft) ? "◆ " : "◇ ";
-    playerEl.textContent = pStr.trim();
+    playerEl.innerHTML = "玩家 ";
+    playerEl.appendChild(makeTokens(playerFullTokens, playerFlashTokens, calcPlayerTokenCount()));
   }
   if (enemyEl) {
-    var eStr = "敵人 ";
-    for (var i = 0; i < tokens; i++) eStr += (i < enemyTokensLeft) ? "◆ " : "◇ ";
-    enemyEl.textContent = eStr.trim();
+    enemyEl.innerHTML = "敵人 ";
+    enemyEl.appendChild(makeTokens(enemyFullTokens, enemyFlashTokens, calcEnemyTokenCount()));
   }
 }
 
@@ -751,6 +887,7 @@ function applyTileStyle(tile, tileType) {
   sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "",                 alt: "小遊戲", emoji: "🌀" };
   sm[MAP_TILE.SHOP]       = { cls: "tile--shop",     src: "",                 alt: "商店",   emoji: "🛒" };
   sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/boss.png",  alt: "魔王",   emoji: "👿" };
+  sm[MAP_TILE.PORTAL]     = { cls: "tile--portal",   src: "",                 alt: "傳送門", emoji: "⚡" };
 
   var info = sm[tileType];
   if (!info) { tile.classList.add("tile--empty"); return; }
@@ -812,6 +949,31 @@ function checkTileEvent(x, y) {
   else if (t === MAP_TILE.MINI_GAME)  triggerMiniGame(x, y);
   else if (t === MAP_TILE.SHOP)       triggerShop();
   else if (t === MAP_TILE.FINAL_BOSS) triggerFinalBoss(x, y);
+  else if (t === MAP_TILE.PORTAL)     triggerPortal(x, y);
+}
+
+function _findPortalDestination(x, y) {
+  for (var pid in portals) {
+    var pair = portals[pid];
+    if (pair.length === 2) {
+      if (pair[0][0] === y && pair[0][1] === x) return { x: pair[1][1], y: pair[1][0] };
+      if (pair[1][0] === y && pair[1][1] === x) return { x: pair[0][1], y: pair[0][0] };
+    }
+  }
+  return null;
+}
+
+function triggerPortal(x, y) {
+  var dest = _findPortalDestination(x, y);
+  if (dest) {
+    player.x = dest.x;
+    player.y = dest.y;
+    renderMap();
+    updateVision();
+    logMessage("你踏入了傳送門，瞬間移動到另一個地點！");
+  } else {
+    showMapMessage("傳送門似乎尚未連接任何地點...");
+  }
 }
 
 function triggerChest(x, y) {
@@ -839,19 +1001,44 @@ function triggerChest(x, y) {
   renderMap();
 }
 
-// 根據 x 座標決定敵人強度分級；同一格永遠出現同一隻怪
-function triggerEnemy(x, y) {
-  var tier;
+function _pickEnemy(x, y) {
+  var key = y + "," + x;
+  if (tileEnemyMap && tileEnemyMap[key]) {
+    var name = tileEnemyMap[key];
+    var allPools = [enemies];
+    if (typeof enemiesTier2 !== "undefined") allPools.push(enemiesTier2);
+    if (typeof enemiesTier3 !== "undefined") allPools.push(enemiesTier3);
+    for (var pi = 0; pi < allPools.length; pi++) {
+      for (var ei = 0; ei < allPools[pi].length; ei++) {
+        if (allPools[pi][ei].name === name) return allPools[pi][ei];
+      }
+    }
+    console.warn("tileEnemyMap 指定的怪物「" + name + "」在 enemies 中找不到，改用隨機。");
+  }
+  var tier, zoneLetter;
   if (x > mazeDivX2 && typeof enemiesTier3 !== "undefined" && enemiesTier3.length > 0) {
-    tier = enemiesTier3;
+    tier = enemiesTier3; zoneLetter = "C";
   } else if (x > mazeDivX1 && typeof enemiesTier2 !== "undefined" && enemiesTier2.length > 0) {
-    tier = enemiesTier2;
+    tier = enemiesTier2; zoneLetter = "B";
   } else {
-    tier = enemies;
+    tier = enemies; zoneLetter = "A";
+  }
+  // zoneEnemies 過濾：若該區指定了允許的怪物名稱，則只從這些怪物中選取
+  if (typeof zoneEnemies !== "undefined" && zoneEnemies[zoneLetter] && zoneEnemies[zoneLetter].length > 0) {
+    var _allowed = zoneEnemies[zoneLetter];
+    var _filtered = [];
+    for (var _fi = 0; _fi < tier.length; _fi++) {
+      if (_allowed.indexOf(tier[_fi].name) !== -1) _filtered.push(tier[_fi]);
+    }
+    if (_filtered.length > 0) tier = _filtered;
   }
   var posRng = makeRng(MAP_SEED * 10000 + y * 1000 + x);
-  var idx = Math.floor(posRng() * tier.length);
-  var ed  = tier[idx];
+  return tier[Math.floor(posRng() * tier.length)];
+}
+
+// 根據 x 座標決定敵人強度分級；tileEnemyMap 可指定特定怪物
+function triggerEnemy(x, y) {
+  var ed = _pickEnemy(x, y);
   currentEnemy = {
     x: x, y: y,
     name: ed.name, hp: ed.hp, maxHp: ed.maxHp,
@@ -969,7 +1156,7 @@ function renderSkillCard(skill, container) {
   var card = document.createElement("div"); card.className = "shop-card shop-card--skill";
   var left = document.createElement("div"); left.className = "shop-card-left";
   var nm = document.createElement("div"); nm.className = "shop-card-name"; nm.textContent = skill.icon + " " + skill.name;
-  var ds = document.createElement("div"); ds.className = "shop-card-desc"; ds.textContent = skill.desc;
+  var ds = document.createElement("div"); ds.className = "shop-card-desc"; ds.textContent = computeSkillDesc(skill, currentPlayer.atk);
   left.appendChild(nm); left.appendChild(ds);
   var right = document.createElement("div"); right.className = "shop-card-right";
   var pr = document.createElement("div"); pr.className = "shop-card-price"; pr.textContent = "💰 " + skill.price;
@@ -988,7 +1175,7 @@ function renderCraftCard(skill, container) {
   var left = document.createElement("div"); left.className = "shop-card-left";
   var nm = document.createElement("div"); nm.className = "shop-card-name";
   nm.textContent = skill.icon + " " + skill.name + (owned ? " ✅" : "");
-  var ds = document.createElement("div"); ds.className = "shop-card-desc"; ds.textContent = skill.desc;
+  var ds = document.createElement("div"); ds.className = "shop-card-desc"; ds.textContent = computeSkillDesc(skill, currentPlayer.atk);
   var rc = document.createElement("div"); rc.className = "shop-card-recipe";
   rc.textContent = "需要：" + skill.recipe.map(function(r) {
     var d = getSkillDef(r); var have = currentPlayer.skills.indexOf(r) !== -1;
@@ -1124,7 +1311,8 @@ function startCombat() {
   var ptDisplay = document.getElementById("press-turn-display");
   if (ptDisplay) {
     if (COMBAT_MODE === "press_turn") {
-      playerTokensLeft = PRESS_TURN_TOKENS; enemyTokensLeft = PRESS_TURN_TOKENS;
+      playerFullTokens  = calcPlayerTokenCount(); playerFlashTokens = 0;
+      enemyFullTokens   = calcEnemyTokenCount();  enemyFlashTokens  = 0;
       ptDisplay.style.display = "flex"; updateTokenDisplay();
     } else {
       ptDisplay.style.display = "none";
@@ -1222,15 +1410,29 @@ function onAttack() {
   }
   executeCombatRound("attack");
 }
-function onDefend() { executeCombatRound("defend");  }
-function onFlee()   { executeCombatRound("flee");    }
+function onDefend() { executeCombatRound("defend"); }
+function onFlee()   { executeCombatRound("flee");   }
+function onPass()   { executeCombatRound("pass");   }
 
 function executeCombatRound(action) {
   setCombatButtonsEnabled(false);
-  // 關閉任何開啟中的面板
   var tsp = document.getElementById("target-select-panel");
   if (tsp) tsp.style.display = "none";
   hideEnemyInfo();
+
+  // Pass：只消耗 ◆ 全點圖示（◈ 閃爍不可傳遞，防止無限鏈式傳遞）
+  if (action === "pass" && COMBAT_MODE === "press_turn") {
+    if (playerFullTokens <= 0) {
+      logMessage("⚠ 只剩閃爍圖示，無法傳遞！請直接行動。");
+      setCombatButtonsEnabled(true);
+      return;
+    }
+    playerFullTokens--; playerFlashTokens++;
+    updateTokenDisplay();
+    logMessage("🔄 回合傳遞！（◆→◈）");
+    setTimeout(function() { processAllyTurns(runEnemyPhase); }, 400);
+    return;
+  }
 
   var result = playerTurn(action, currentPlayer, currentEnemy);
 
@@ -1263,6 +1465,7 @@ function executeCombatRound(action) {
       dealDmgToEnemy(activeClones[i], result.enemyDamage);
       if (activeClones[i].hp <= 0) { activeClones.splice(i, 1); killed++; }
     }
+    if (result.enemyDamage > 0) showDamagePopup(currentPlayer.name, result.enemyDamage, false);
     logMessage(result.message);
     if (killed > 0) logMessage("💀 消滅了 " + killed + " 個分身！剩餘 " + activeClones.length + " 個。");
     if (activeClones.length > 0) {
@@ -1282,7 +1485,10 @@ function executeCombatRound(action) {
   }
 
   // ── 單體攻擊 ─────────────────────────────────────────────
-  if (result.enemyDamage > 0) dealDmgToEnemy(currentEnemy, result.enemyDamage);
+  if (result.enemyDamage > 0) {
+    dealDmgToEnemy(currentEnemy, result.enemyDamage);
+    showDamagePopup(currentPlayer.name, result.enemyDamage, false);
+  }
   logMessage(result.message || "");
   updateCombatEnemyHp();  // 先讓血條反映最新 HP（包含歸 0），再做 splice / 結算
 
@@ -1317,11 +1523,13 @@ function executeCombatRound(action) {
   }
 
   if (COMBAT_MODE === "press_turn") {
-    if      (result.bonusTurn) logMessage("★ 額外行動！令牌不減！");
-    else if (result.loseTurn)  { playerTokensLeft = 0; logMessage("⚠ 失去剩餘行動！"); }
-    else                        playerTokensLeft--;
+    if      (result.bonusTurn) logMessage("★ 弱點命中！圖示轉為閃爍，獲得額外行動！");
+    else if (result.loseTurn)  logMessage("⚠ 攻擊被無效化！額外失去一個圖示！");
+    consumePlayerToken(result.bonusTurn, result.loseTurn);
     updateTokenDisplay();
-    if (playerTokensLeft > 0) { setCombatButtonsEnabled(true); return; }
+    // 玩家行動一次 → 同伴接力 → 敵方回合（不循環回玩家）
+    setTimeout(function() { processAllyTurns(runEnemyPhase); }, 600);
+    return;
   }
 
   setTimeout(function() { processAllyTurns(runEnemyPhase); }, 600);
@@ -1346,7 +1554,11 @@ function runEnemyPhase() {
       updateCombatEnemyHp();
     }
   }
-  if (COMBAT_MODE === "press_turn") { enemyTokensLeft = PRESS_TURN_TOKENS; updateTokenDisplay(); }
+  if (COMBAT_MODE === "press_turn") {
+    enemyFullTokens  = calcEnemyTokenCount(); enemyFlashTokens = 0;
+    updateTokenDisplay();
+  }
+  _pairedAttackCursor = 0;  // 重置配對攻擊順序
   runNextEnemyTurn();
 }
 
@@ -1399,6 +1611,10 @@ function endPairedFight() {
 function processAllyTurns(callback) {
   var live = currentAllies.filter(function(a) { return !a.knockedOut; });
   if (live.length === 0) { callback(); return; }
+  // Press Turn: 若圖示已耗盡，同伴跳過
+  if (COMBAT_MODE === "press_turn" && playerFullTokens + playerFlashTokens <= 0) {
+    hideAllyPanel(); callback(); return;
+  }
   showAllyActionFor(live, 0, callback);
 }
 
@@ -1429,11 +1645,30 @@ function showAllyActionFor(live, idx, callback) {
   function onAction(action) {
     var allBtns = btns.querySelectorAll("button");
     for (var k = 0; k < allBtns.length; k++) allBtns[k].disabled = true;
-    executeAllyAction(ally, action);
+    var allyResult = executeAllyAction(ally, action);
+    if (COMBAT_MODE === "press_turn") {
+      if (action === "skip") {
+        // 待機：有 ◆ 則傳遞（◆→◈）；僅剩 ◈ 則直接消耗閃爍（不能鏈式傳遞）
+        if (playerFullTokens > 0) {
+          playerFullTokens--; playerFlashTokens++;
+        } else {
+          playerFlashTokens = Math.max(0, playerFlashTokens - 1);
+        }
+      } else {
+        var bt = allyResult && allyResult.bonusTurn;
+        var lt = allyResult && allyResult.loseTurn;
+        consumePlayerToken(bt, lt);
+      }
+      updateTokenDisplay();
+    }
     if (currentEnemy && currentEnemy.hp <= 0 && activeClones.length === 0) {
       hideAllyPanel();
       setTimeout(function() { callback(); }, 400);
       return;
+    }
+    // Press Turn: 若圖示耗盡則不再繼續同伴
+    if (COMBAT_MODE === "press_turn" && playerFullTokens + playerFlashTokens <= 0) {
+      hideAllyPanel(); setTimeout(function() { callback(); }, 400); return;
     }
     setTimeout(function() { showAllyActionFor(live, idx + 1, callback); }, 400);
   }
@@ -1447,7 +1682,7 @@ function showAllyActionFor(live, idx, callback) {
   if (ally.skill) {
     var btnSk = document.createElement("button");
     btnSk.className = "btn btn-skill"; btnSk.style.flex = "none";
-    btnSk.title = ally.skill.desc;
+    btnSk.title = computeAllySkillDesc(ally.skill, ally.atk);
     if (ally.skillCooldown > 0) {
       btnSk.textContent = ally.skill.icon + " " + ally.skill.name + " (" + ally.skillCooldown + ")";
       btnSk.disabled = true; btnSk.classList.add("btn-skill--cd");
@@ -1473,19 +1708,24 @@ function hideAllyPanel() {
 }
 
 function executeAllyAction(ally, action) {
+  var allyResult = { bonusTurn: false, loseTurn: false };
   if (action === "skip") {
-    logMessage(ally.icon + " 「" + ally.name + "」待機。"); return;
+    logMessage(ally.icon + " 「" + ally.name + "」待機。"); return allyResult;
   }
 
   if (action === "attack") {
     var target = currentEnemy;
     if (!target || target.hp <= 0) {
-      logMessage(ally.icon + " 「" + ally.name + "」沒有目標。"); return;
+      logMessage(ally.icon + " 「" + ally.name + "」沒有目標。"); return allyResult;
     }
     var dmg = Math.max(1, ally.atk - (target.def || 0));
     var critMsg = "";
-    if (ally.critChance && Math.random() < ally.critChance) { dmg *= 2; critMsg = " 💥爆擊！"; }
+    if (ally.critChance && Math.random() < ally.critChance) {
+      dmg *= 2; critMsg = " 💥爆擊！";
+      allyResult.bonusTurn = true; // 暴擊觸發 Press Turn bonus
+    }
     dealDmgToEnemy(target, dmg);
+    showDamagePopup(ally.icon + ally.name, dmg, false);
     logMessage(ally.icon + " 「" + ally.name + "」攻擊「" + target.name + "」，造成 " + dmg + " 點傷害！" + critMsg + (target.isMiniBarrier ? " 🛡️（格擋中）" : ""));
     if (target.hp <= 0 && activeClones.length > 0) {
       var ki = activeClones.indexOf(target);
@@ -1502,13 +1742,13 @@ function executeAllyAction(ally, action) {
       }
     }
     updateCombatEnemyHp();
-    return;
+    return allyResult;
   }
 
   if (action === "skill") {
     var skill = ally.skill;
     if (!skill || ally.skillCooldown > 0) {
-      logMessage(ally.icon + " 「" + ally.name + "」技能冷卻中！"); return;
+      logMessage(ally.icon + " 「" + ally.name + "」技能冷卻中！"); return allyResult;
     }
     ally.skillCooldown = skill.cooldown;
 
@@ -1534,24 +1774,25 @@ function executeAllyAction(ally, action) {
           : (currentEnemy.name + " ×" + activeClones.length);
       }
       updateCombatEnemyHp();
-      return;
+      return allyResult;
     }
 
     if (skill.isShield) {
       allyShieldActive = true;
       logMessage(ally.icon + " 「" + ally.name + "」使用「" + skill.name + "」！本回合傷害減半！");
-      return;
+      return allyResult;
     }
     if (skill.isTaunt) {
       knightTauntActive = true;
       logMessage(ally.icon + " 「" + ally.name + "」使用「" + skill.name + "」！本回合替玩家承受攻擊！");
-      return;
+      return allyResult;
     }
     // 單體傷害技能（如冰矛）
     if (skill.multiplier && skill.multiplier > 0) {
       var target = activeClones.length > 0 ? activeClones[0] : currentEnemy;
       var dmg = Math.max(1, Math.floor(ally.atk * skill.multiplier) - (target.def || 0));
       dealDmgToEnemy(target, dmg);
+      showDamagePopup(ally.icon + ally.name, dmg, false);
       logMessage(ally.icon + " 「" + ally.name + "」使用「" + skill.name + "」！對「" + target.name + "」造成 " + dmg + " 點傷害！");
       if (target.hp <= 0 && activeClones.length > 0) {
         var ki = activeClones.indexOf(target);
@@ -1561,6 +1802,7 @@ function executeAllyAction(ally, action) {
       updateCombatEnemyHp();
     }
   }
+  return allyResult;
 }
 
 function updateAllyHpArea() {
@@ -1601,7 +1843,7 @@ function renderAllyCard(def, container) {
     var ds = document.createElement("div"); ds.className = "shop-card-desc";
     ds.textContent = "HP:" + ally.maxHp + "  ATK:" + ally.atk + "  DEF:" + ally.def;
     var sk = document.createElement("div"); sk.className = "shop-card-recipe";
-    sk.textContent = "技能：" + def.skill.icon + " " + def.skill.name;
+    sk.textContent = "技能：" + def.skill.icon + " " + def.skill.name + " — " + computeAllySkillDesc(def.skill, ally.atk);
     left.appendChild(ds); left.appendChild(sk);
 
     // 升級按鈕列
@@ -1634,7 +1876,7 @@ function renderAllyCard(def, container) {
     var ds2 = document.createElement("div"); ds2.className = "shop-card-desc";
     ds2.textContent = "HP:" + def.maxHp + "  ATK:" + def.atk + "  DEF:" + def.def;
     var sk2 = document.createElement("div"); sk2.className = "shop-card-recipe";
-    sk2.textContent = "技能：" + def.skill.icon + " " + def.skill.name + " — " + def.skill.desc;
+    sk2.textContent = "技能：" + def.skill.icon + " " + def.skill.name + " — " + computeAllySkillDesc(def.skill, def.atk);
     left.appendChild(ds2); left.appendChild(sk2);
   }
 
@@ -1739,7 +1981,53 @@ function dismissAlly(allyId) {
 // ─────────────────────────────────────────────────────────────
 
 function runNextEnemyTurn() {
-  // ── 分身同時攻擊 ──────────────────────────────────────────
+  // ── 配對怪物：逐一輪流攻擊（各自使用 Press Turn 圖示）──────
+  if (activeClones.length > 0 && pairedFightEnemy !== null) {
+    var attacker = activeClones[_pairedAttackCursor % activeClones.length];
+    _pairedAttackCursor++;
+    var res = enemyTurn(currentPlayer, attacker);
+    var dmg = res.playerDamage || 0;
+    var shielded = isPlayerDefending || allyShieldActive;
+    isPlayerDefending = false; allyShieldActive = false;
+    if (shielded) {
+      dmg = Math.floor(dmg / 2);
+      logMessage("🛡️ 防禦！「" + attacker.name + "」攻擊削半！");
+    }
+    var taunt = knightTauntActive; knightTauntActive = false;
+    if (taunt && dmg > 0) {
+      var _ka = null;
+      for (var _ki = 0; _ki < currentAllies.length; _ki++) {
+        if (currentAllies[_ki].id === "knight" && !currentAllies[_ki].knockedOut) { _ka = currentAllies[_ki]; break; }
+      }
+      if (_ka) {
+        var _ktd = Math.max(1, dmg - (_ka.def || 0));
+        _ka.hp = Math.max(0, _ka.hp - _ktd);
+        logMessage("🔰 「" + _ka.name + "」護衛承受 " + _ktd + " 點傷害！");
+        if (_ka.hp <= 0) { _ka.knockedOut = true; logMessage("💔 「" + _ka.name + "」力竭倒下！"); }
+        updateAllyHpArea(); dmg = 0;
+      }
+    }
+    if (dmg > 0) { updatePlayerHp(-dmg); showDamagePopup(attacker.name, dmg, true); }
+    logMessage(res.message || "");
+    if (currentPlayer.hp <= 0) {
+      logMessage("💀 你被打倒了..."); playSound("defeat");
+      setTimeout(function() { triggerGameOver(); }, 1500); return;
+    }
+    if (COMBAT_MODE === "press_turn") {
+      if (res.bonusTurn) logMessage("★ 敵人暴擊！獲得額外行動！");
+      consumeEnemyToken(res.bonusTurn, res.loseTurn);
+      updateTokenDisplay();
+      if (enemyFullTokens + enemyFlashTokens > 0) { setTimeout(function() { runNextEnemyTurn(); }, 800); return; }
+      startNewCombatRound();
+    } else {
+      decrementSkillCooldowns();
+      if (playerAtkDebuffTurns > 0) playerAtkDebuffTurns--;
+      setCombatButtonsEnabled(true);
+    }
+    return;
+  }
+
+  // ── Boss 分身同時攻擊 ─────────────────────────────────────
   if (activeClones.length > 0) {
     var effectiveDef = currentPlayer.def + (currentPlayer.tempDef || 0);
     var totalDmg = 0;
@@ -1777,13 +2065,18 @@ function runNextEnemyTurn() {
         totalDmg = 0;
       }
     }
-    if (totalDmg > 0) updatePlayerHp(-totalDmg);
+    if (totalDmg > 0) { updatePlayerHp(-totalDmg); showDamagePopup(cloneLabel + "×" + activeClones.length, totalDmg, true); }
     if (currentPlayer.hp <= 0) {
       logMessage("💀 你被打倒了..."); playSound("defeat");
       setTimeout(function() { triggerGameOver(); }, 1500); return;
     }
-    decrementSkillCooldowns();
-    setCombatButtonsEnabled(true);
+    if (COMBAT_MODE === "press_turn") {
+      startNewCombatRound();
+    } else {
+      decrementSkillCooldowns();
+      if (playerAtkDebuffTurns > 0) playerAtkDebuffTurns--;
+      setCombatButtonsEnabled(true);
+    }
     return;
   }
 
@@ -1802,9 +2095,18 @@ function runNextEnemyTurn() {
       logMessage("💔 「" + atarget.name + "」陣亡了！前往商店購買或寶箱尋找復活藥水。");
     }
     updateAllyHpArea();
-    decrementSkillCooldowns();
-    if (playerAtkDebuffTurns > 0) playerAtkDebuffTurns--;
-    setCombatButtonsEnabled(true);
+    if (COMBAT_MODE === "press_turn") {
+      consumeEnemyToken(false, false);
+      updateTokenDisplay();
+      if (enemyFullTokens + enemyFlashTokens > 0) {
+        setTimeout(function() { runNextEnemyTurn(); }, 800); return;
+      }
+      startNewCombatRound();
+    } else {
+      decrementSkillCooldowns();
+      if (playerAtkDebuffTurns > 0) playerAtkDebuffTurns--;
+      setCombatButtonsEnabled(true);
+    }
     return;
   }
 
@@ -1849,7 +2151,7 @@ function runNextEnemyTurn() {
     }
   }
 
-  if (dmg > 0) updatePlayerHp(-dmg);
+  if (dmg > 0) { updatePlayerHp(-dmg); showDamagePopup(currentEnemy.name, dmg, true); }
   logMessage(res.message || "");
 
   // 狂暴濺射：範圍波及所有存活同伴各 10 HP
@@ -1878,11 +2180,11 @@ function runNextEnemyTurn() {
   }
 
   if (COMBAT_MODE === "press_turn") {
-    if      (res.bonusTurn) logMessage("★ 敵人獲得額外行動！");
-    else if (res.loseTurn)  enemyTokensLeft = 0;
-    else                    enemyTokensLeft--;
+    if      (res.bonusTurn) logMessage("★ 敵人弱點命中！獲得額外行動！");
+    else if (res.loseTurn)  logMessage("⚠ 敵人攻擊被無效化！額外失去一個圖示！");
+    consumeEnemyToken(res.bonusTurn, res.loseTurn);
     updateTokenDisplay();
-    if (enemyTokensLeft > 0) { setTimeout(function() { runNextEnemyTurn(); }, 800); return; }
+    if (enemyFullTokens + enemyFlashTokens > 0) { setTimeout(function() { runNextEnemyTurn(); }, 800); return; }
     startNewCombatRound();
   } else {
     decrementSkillCooldowns();
@@ -1895,9 +2197,11 @@ function startNewCombatRound() {
   isPlayerDefending = false;
   decrementSkillCooldowns();
   if (COMBAT_MODE === "press_turn") {
-    playerTokensLeft = PRESS_TURN_TOKENS; enemyTokensLeft = PRESS_TURN_TOKENS;
+    playerFullTokens  = calcPlayerTokenCount(); playerFlashTokens = 0;
+    enemyFullTokens   = calcEnemyTokenCount();  enemyFlashTokens  = 0;
     updateTokenDisplay();
   }
+  if (playerAtkDebuffTurns > 0) { playerAtkDebuffTurns--; }
   setCombatButtonsEnabled(true);
 }
 
@@ -1927,6 +2231,24 @@ function giveEnemyReward() {
       endCombat(true);
     }
   }, 1500);
+}
+
+function showDamagePopup(attackerName, damage, targetIsPlayer) {
+  var field = document.getElementById("combat-field");
+  if (!field || damage <= 0) return;
+  var el = document.createElement("div");
+  el.className = "damage-popup " + (targetIsPlayer ? "damage-popup--player" : "damage-popup--enemy");
+  el.textContent = attackerName + " ▶ " + damage;
+  var rnd = Math.random();
+  if (targetIsPlayer) {
+    el.style.left = (50 + Math.floor(rnd * 60)) + "px";
+    el.style.top  = (150 + Math.floor(rnd * 35)) + "px";
+  } else {
+    el.style.right = (65 + Math.floor(rnd * 55)) + "px";
+    el.style.top   = (95 + Math.floor(rnd * 40)) + "px";
+  }
+  field.appendChild(el);
+  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1400);
 }
 
 function showCoinDrop(amount) {

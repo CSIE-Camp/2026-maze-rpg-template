@@ -124,9 +124,10 @@
       <div id="combat-log"></div>
       <!-- 基本行動 -->
       <div id="combat-buttons">
-        <button class="btn btn-attack" id="btn-attack" onclick="onAttack()">⚔️ 攻擊</button>
-        <button class="btn btn-defend" id="btn-defend" onclick="onDefend()">🛡️ 防禦</button>
-        <button class="btn btn-flee"   id="btn-flee"   onclick="onFlee()">💨 逃跑</button>
+        <button class="btn btn-attack"  id="btn-attack"  onclick="onAttack()">⚔️ 攻擊</button>
+        <button class="btn btn-defend"  id="btn-defend"  onclick="onDefend()">🛡️ 防禦</button>
+        <button class="btn btn-flee"    id="btn-flee"    onclick="onFlee()">💨 逃跑</button>
+        <button class="btn btn-pass"    id="btn-pass"    onclick="onPass()" style="display:none">🔄 傳遞</button>
         <button class="btn btn-inspect" id="btn-inspect" onclick="showEnemyInfo()">📋 查看</button>
       </div>
       <!-- 目標選擇面板 -->
@@ -236,6 +237,7 @@
   <!-- ════════════════════════════════════════════════════
        載入 JS
        ════════════════════════════════════════════════════ -->
+  <script src="map.js"></script>
   <script src="data.js"></script>
   <script src="engine.js"></script>
   <script src="student.js"></script>

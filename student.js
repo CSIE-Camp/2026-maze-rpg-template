@@ -16,8 +16,12 @@ function playerTurn(action, player, enemy) {
     enemyDamage:   0,
     playerDefense: false,
     playerFlee:    false,
+    // ── Press Turn 圖示控制 ──────────────────────────────────
+    // bonusTurn: true = 擊中弱點/暴擊，圖示「全點 → 半點」，多一次行動機會
+    // loseTurn:  true = 被閃避/無效/吸收，額外多扣 1 個圖示（高風險懲罰）
     bonusTurn:     false,
     loseTurn:      false,
+    // ────────────────────────────────────────────────────────
     selfDamage:    0,
     skillUsed:     null,
     isAoe:         false,
@@ -35,8 +39,20 @@ function playerTurn(action, player, enemy) {
   if (action === "attack") {
     var damage = effectiveAtk - enemy.def;
     if (damage < 1) damage = 1;
+
+    // ── Press Turn 範例：30% 機率暴擊，觸發 bonusTurn（圖示全點→半點）
+    var isCritical = Math.random() < 0.3;
+    if (isCritical) {
+      damage = Math.floor(damage * 1.5);
+      result.bonusTurn = true;  // 暴擊：多一次行動機會
+    }
+    // ── Press Turn 範例：敵人閃避（實際環境可改成判斷敵人弱點/屬性）
+    // var enemyEvaded = Math.random() < 0.1;
+    // if (enemyEvaded) { damage = 0; result.loseTurn = true; }
+
     result.enemyDamage = damage;
     result.message = "你對「" + enemy.name + "」發動攻擊，造成了 " + damage + " 點傷害！";
+    if (isCritical) result.message += " 💥 暴擊！";
     if (player.tempAtk > 0) result.message += " ⚡";
   }
 
@@ -152,37 +168,50 @@ function enemyTurn(player, enemy) {
       return result;
     }
 
-    // ── 普通攻擊 ──
-    result.playerDamage = damage;
-    result.message = "「" + enemy.name + "」對你發動攻擊，造成了 " + damage + " 點傷害！";
+    // ── 普通攻擊（30% 暴擊，獲得 Press Turn 半點圖示）──
+    var bossCrit = Math.random() < 0.3;
+    result.playerDamage = bossCrit ? Math.floor(damage * 1.5) : damage;
+    result.bonusTurn    = bossCrit;
+    result.message = bossCrit
+      ? "💥 魔王暴擊！造成了 " + result.playerDamage + " 點傷害！"
+      : "「" + enemy.name + "」對你發動攻擊，造成了 " + damage + " 點傷害！";
 
     // ── 狂暴（HP < 40%）：+5 傷害 ＋ 範圍濺射同伴，但不連擊 ──
     if (enemy.hp < enemy.maxHp * 0.4) {
-      damage += 5;
-      result.playerDamage = damage;
+      var berserkDmg = result.playerDamage + 5;
+      result.playerDamage = berserkDmg;
+      result.bonusTurn    = false;   // 狂暴不觸發 bonusTurn
       result.aoeSplash    = true;
-      result.message = "😈 魔王狂暴！造成了 " + damage + " 點傷害，範圍攻擊波及同伴！";
+      result.message = "😈 魔王狂暴！造成了 " + berserkDmg + " 點傷害，範圍攻擊波及同伴！";
     }
 
     return result;
   }
 
-  // ── 黑騎士★：40% 防禦姿態（技能）/ 60% 普通攻擊 ──
+  // ── 黑騎士★：40% 防禦姿態（技能）/ 60% 普通攻擊（30% 暴擊）──
   if (enemy.isMiniBarrier) {
     if (Math.random() < 0.4) {
       var lightDmg = Math.max(1, Math.floor(enemy.atk * 0.5) - player.def);
       result.playerDamage = lightDmg;
       result.message = "🛡️ 黑騎士★堅守防線！輕擊造成 " + lightDmg + " 點傷害。";
     } else {
-      result.playerDamage = damage;
-      result.message = "⚔️ 黑騎士★發動攻擊！造成 " + damage + " 點傷害！";
+      var knightCrit = Math.random() < 0.3;
+      result.playerDamage = knightCrit ? Math.floor(damage * 1.5) : damage;
+      result.bonusTurn    = knightCrit;
+      result.message = knightCrit
+        ? "💥 黑騎士★暴擊！造成 " + result.playerDamage + " 點傷害！"
+        : "⚔️ 黑騎士★發動攻擊！造成 " + damage + " 點傷害！";
     }
     return result;
   }
 
-  // ── 普通敵人 ──
-  result.playerDamage = damage;
-  result.message = "「" + enemy.name + "」對你發動攻擊，造成了 " + damage + " 點傷害！";
+  // ── 普通敵人（30% 暴擊，獲得 Press Turn 半點圖示）──
+  var isCrit = Math.random() < 0.3;
+  result.playerDamage = isCrit ? Math.floor(damage * 1.5) : damage;
+  result.bonusTurn    = isCrit;
+  result.message = isCrit
+    ? "💥 「" + enemy.name + "」暴擊！造成了 " + result.playerDamage + " 點傷害！"
+    : "「" + enemy.name + "」對你發動攻擊，造成了 " + damage + " 點傷害！";
   return result;
 }
 

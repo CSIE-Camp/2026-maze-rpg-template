@@ -2,18 +2,7 @@
 //  data.js  ── 遊戲資料設定檔
 // ============================================================
 
-var MAP_TILE = {
-  EMPTY:      0,
-  WALL:       1,
-  CHEST:      2,
-  ENEMY:      3,
-  DOOR:       4,
-  MINI_GAME:  5,
-  SHOP:       6,
-  FINAL_BOSS: 9
-};
-
-// ── 地圖設定 ──────────────────────────────────────────────────
+// ── 地圖設定（隨機生成模式參數；若 map.js 有 mapGrid 則不使用） ──
 // 地圖分三區：A（主區）→ 門1 → B（中區）→ 門2 → C（鎖定區）
 // 必須為奇數；MAP_SEED 固定使地圖每次相同
 var MAP_WIDTH  = 33;
@@ -24,45 +13,39 @@ var MAP_SEED   = 42;   // 改這個數字可以換一張固定地圖
 var ENEMY_COUNT = 18;    // 三區合計（A:2, B:2, C:3）
 var CHEST_COUNT = 11;
 
-// ── 出生點 ────────────────────────────────────────────────────
-var playerStart = { x: 1, y: 1 };
-
-// ── 視野半徑 ──────────────────────────────────────────────────
-var visionRadius = 3;
-
 // ── 玩家數值 ──────────────────────────────────────────────────
 var playerStats = {
   name:   "勇者",
-  hp:     100,
-  maxHp:  100,
+  hp:     1000,
+  maxHp:  1000      ,
   atk:    10,
   def:    5,
-  money:  25,
+  money:  10000,
   keys:   0,
   skills: ["power_strike"]
 };
 
 // ── 敵人（A 區 Tier 1） ───────────────────────────────────────
 var enemies = [
-  { name: "哥布林",   hp: 42,  maxHp: 42,  atk: 11, def: 3,  reward: { money: 22 } },
-  { name: "獸人",     hp: 60,  maxHp: 60,  atk: 13, def: 4,  reward: { money: 27 } },
-  { name: "石像鬼",   hp: 56,  maxHp: 56,  atk: 16, def: 5,  reward: { money: 28 } },
-  { name: "惡魔蝙蝠", hp: 38,  maxHp: 38,  atk: 15, def: 2,  reward: { money: 25 } }
+  { name: "哥布林",   hp: 42,  maxHp: 42,  atk:  9, def: 3,  reward: { money: 22 } },
+  { name: "狼人",     hp: 60,  maxHp: 60,  atk: 10, def: 4,  reward: { money: 27 } },
+  { name: "泥巴怪",   hp: 56,  maxHp: 56,  atk: 13, def: 5,  reward: { money: 28 } },
+  { name: "惡魔蝙蝠",hp: 38,  maxHp: 38,  atk: 12, def: 2,  reward: { money: 25 } }
 ];
 
 // ── 敵人（B 區 Tier 2）────────────────────────────────────────
 var enemiesTier2 = [
-  { name: "魔法師",   hp: 250, maxHp: 250, atk: 19, def: 10, reward: { money: 67 } },
-  { name: "黑騎士★",  hp: 10,  maxHp: 10,  atk: 34, def:  0, reward: { money: 90 }, isMiniBarrier: true, noOneShot: true },
-  { name: "地獄犬",   hp: 190, maxHp: 190, atk: 25, def:  8, reward: { money: 73 } },
-  { name: "狼人雙煞", hp: 120, maxHp: 120, atk: 21, def:  5, reward: { money: 77 }, isPaired: true }
+  { name: "骷髏騎士",   hp: 250, maxHp: 250, atk: 15, def: 10, reward: { money: 67 } },
+  { name: "Error404★",  hp: 10,  maxHp: 10,  atk: 27, def:  0, reward: { money: 90 }, isMiniBarrier: true, noOneShot: true },
+  { name: "史萊姆",   hp: 190, maxHp: 190, atk: 20, def:  8, reward: { money: 73 } },
+  { name: "石像", hp: 120, maxHp: 120, atk: 17, def:  5, reward: { money: 77 }, isPaired: true }
 ];
 
 // ── 敵人（C 區 Tier 3）────────────────────────────────────────
 var enemiesTier3 = [
-  { name: "死靈法師",  hp: 420, maxHp: 420, atk: 43, def: 15, reward: { money: 80 } },
-  { name: "暗黑巨龍",  hp: 510, maxHp: 510, atk: 35, def: 18, reward: { money: 94 } },
-  { name: "冥界雙衛", hp: 200, maxHp: 200, atk: 42, def: 12, reward: { money: 85 }, isPaired: true }
+  { name: "死靈法師",  hp: 420, maxHp: 420, atk: 34, def: 15, reward: { money: 80 } },
+  { name: "眼球怪",  hp: 510, maxHp: 510, atk: 28, def: 18, reward: { money: 94 } },
+  { name: "冥界雙衛", hp: 200, maxHp: 200, atk: 34, def: 12, reward: { money: 85 }, isPaired: true }
 ];
 
 // ── 最終 Boss ─────────────────────────────────────────────────
@@ -127,7 +110,7 @@ var shopItems = [
 // ── 同伴定義（可在商店招募，最多 2 人） ──────────────────────
 var allyDefs = [
   { id: "archer", name: "弓箭手", icon: "🏹",
-    hp: 80, maxHp: 80, atk: 18, def: 3, price: 80, critChance: 0.5,
+    hp: 80, maxHp: 80, atk: 18, def: 3, price: 1, critChance: 0.5,
     skill: { id: "volley",     name: "箭雨",    icon: "🌧️",
              desc: "攻擊全體敵人各造成 ATK 點傷害（冷卻 3 回合）",
              isAoe: true,    multiplier: 1,   cooldown: 2 } },
@@ -150,8 +133,9 @@ var MG_ENEMY_DURATION  = 1500;
 var MG_SPAWN_INTERVAL  = 1000;
 
 // ── 戰鬥模式 ─────────────────────────────────────────────────
-var COMBAT_MODE       = "traditional";
-var PRESS_TURN_TOKENS = 3;
+var COMBAT_MODE = "press_turn";
+// 敵方基礎圖示數（單體敵人；boss 分身戰鬥時由引擎動態加算分身數）
+var ENEMY_BASE_TOKENS = 1;
 
 // ── 對話文本 ──────────────────────────────────────────────────
 var dialogues = {
