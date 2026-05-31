@@ -75,7 +75,7 @@ var AudioSystem = (function () {
       loopEnd   : null
     },
     battle1: {
-      src       : "assets/audio/bgm_battle1.wav",
+      src       : "assets/audio/bgm_battle1.mp3",
       volume    : 0.8,
       loopStart : 0,
       loopEnd   : null
@@ -87,7 +87,7 @@ var AudioSystem = (function () {
       loopEnd   : null
     },
     boss: {
-      src       : "assets/audio/bgm_boss.wav",
+      src       : "assets/audio/bgm_boss.mp3",
       volume    : 0.9,
       loopStart : 0,
       loopEnd   : null
