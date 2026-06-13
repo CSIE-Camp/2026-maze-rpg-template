@@ -24,12 +24,15 @@ var currentPlayer = {
   maxHp:     playerStats.maxHp,
   atk:       playerStats.atk,
   def:       playerStats.def,
+  spd:       playerStats.spd  || 10,
   money:     playerStats.money,
   keys:      playerStats.keys,
   skills:    (playerStats.skills || ["power_strike"]).slice(),
   inventory: [],
   tempAtk:   0,
-  tempDef:   0
+  tempDef:   0,
+  level:     playerStats.level || 1,
+  exp:       playerStats.exp   || 0
 };
 
 var currentMap = mapGrid.map(function(row) { return row.slice(); });
@@ -127,6 +130,9 @@ function showScreen(screenId) {
 }
 
 function playSound(name) {}
+
+function _duckOverlay()   { if (typeof AudioSystem !== "undefined") AudioSystem.duckBgm();   }
+function _unduckOverlay() { if (typeof AudioSystem !== "undefined") AudioSystem.unduckBgm(); }
 
 // ── 命中率計算 ────────────────────────────────────────────────
 // ── 速度 Buff 計算 ────────────────────────────────────────────
@@ -239,13 +245,19 @@ function renderSideParty() {
   if (!area) return;
   area.innerHTML = "";
 
-  function makeCard(icon, name, hp, maxHp, atk, def, isPlayer, isKO) {
+  function makeCard(icon, name, hp, maxHp, atk, def, isPlayer, isKO, char) {
     var pct = maxHp > 0 ? Math.max(0, hp / maxHp * 100) : 0;
     var barClass = isKO ? "bar--low" : (isPlayer ? "bar--player" : (pct < 30 ? "bar--low" : "bar--ally"));
+    var lv = (char && char.level) || 1;
+    var exp = (char && char.exp)  || 0;
+    var quota = (lv < MAX_LEVEL) ? (LEVEL_QUOTAS[lv - 1] || 1) : 0;
+    var expPct = (lv < MAX_LEVEL && quota > 0) ? Math.min(100, Math.floor(exp / quota * 100)) : 100;
+    var expText = (lv >= MAX_LEVEL) ? "MAX" : (exp + " / " + quota);
     var card = document.createElement("div");
     card.className = "side-member-card" + (isKO ? " side-member-ko" : "");
     card.innerHTML =
-      '<div class="side-member-name">' + icon + " " + name + (isKO ? " 💀" : "") + '</div>' +
+      '<div class="side-member-name">' + icon + " " + name + (isKO ? " 💀" : "") +
+        ' <span class="side-member-lv">Lv.' + lv + '</span></div>' +
       '<div class="side-member-bar-wrap">' +
         '<div class="side-member-bar-fill ' + barClass + '" style="width:' + pct + '%"></div>' +
       '</div>' +
@@ -253,7 +265,11 @@ function renderSideParty() {
         '❤️ ' + hp + '/' + maxHp +
         ' &nbsp;⚔️ ' + atk +
         ' &nbsp;🛡️ ' + def +
-      '</div>';
+      '</div>' +
+      '<div class="side-member-exp-wrap">' +
+        '<div class="side-member-exp-fill" style="width:' + expPct + '%"></div>' +
+      '</div>' +
+      '<div class="side-member-exp-text">EXP ' + expText + '</div>';
     area.appendChild(card);
   }
 
@@ -261,11 +277,11 @@ function renderSideParty() {
     currentPlayer.hp, currentPlayer.maxHp,
     currentPlayer.atk + (currentPlayer.tempAtk || 0),
     currentPlayer.def + (currentPlayer.tempDef || 0),
-    true, false);
+    true, false, currentPlayer);
 
   for (var i = 0; i < currentAllies.length; i++) {
     var a = currentAllies[i];
-    makeCard(a.icon, a.name, a.hp, a.maxHp, a.atk, a.def, false, a.knockedOut);
+    makeCard(a.icon, a.name, a.hp, a.maxHp, a.atk, a.def, false, a.knockedOut, a);
   }
 }
 
@@ -434,12 +450,14 @@ function openMiniMapOverlay() {
   }, 0);
 
   document.addEventListener("keydown", _largeMapKeyHandler, true);
+  _duckOverlay();
 }
 
 function closeMiniMapOverlay() {
   var overlay = document.getElementById("minimap-overlay");
   if (overlay) overlay.style.display = "none";
   document.removeEventListener("keydown", _largeMapKeyHandler, true);
+  _unduckOverlay();
 }
 
 // ── 背包 Overlay ──────────────────────────────────────────────
@@ -475,11 +493,13 @@ function openInventory() {
   }
   overlay.style.display = "flex";
   _updateTutorialToggles();
+  _duckOverlay();
 }
 
 function closeInventory() {
   var overlay = document.getElementById("inventory-overlay");
   if (overlay) overlay.style.display = "none";
+  _unduckOverlay();
 }
 
 // ── 設定 Overlay ──────────────────────────────────────────────
@@ -514,21 +534,23 @@ function openSettings() {
     });
   }
   overlay.style.display = "flex";
+  _duckOverlay();
 }
 
 function openPartyOverlay() {
   var ov = document.getElementById("party-overlay");
-  if (ov) { renderSideParty(); ov.style.display = "flex"; }
+  if (ov) { renderSideParty(); ov.style.display = "flex"; _duckOverlay(); }
 }
 
 function closePartyOverlay() {
   var ov = document.getElementById("party-overlay");
-  if (ov) ov.style.display = "none";
+  if (ov) { ov.style.display = "none"; _unduckOverlay(); }
 }
 
 function closeSettings() {
   var overlay = document.getElementById("settings-overlay");
   if (overlay) overlay.style.display = "none";
+  _unduckOverlay();
   var onMap    = document.getElementById("screen-map")    && document.getElementById("screen-map").style.display    !== "none";
   var onCombat = document.getElementById("screen-combat") && document.getElementById("screen-combat").style.display !== "none";
   if (_tut.mazeEnabled && !_tut.mazeDone) {
@@ -859,11 +881,13 @@ function showEnemyInfo() {
 
   content.innerHTML = html;
   panel.style.display = "flex";
+  _duckOverlay();
 }
 
 function hideEnemyInfo() {
   var panel = document.getElementById("inspect-panel");
   if (panel) panel.style.display = "none";
+  _unduckOverlay();
 }
 
 function renderInventoryButtons(combatEnabled) {
@@ -1070,14 +1094,14 @@ function calcEnemyTokenCount() {
 }
 
 function consumePlayerToken(bonusTurn, loseTurn) {
-  if (bonusTurn) { tryShowHalfTokenTutorial(); playSound("flash_token");
+  if (bonusTurn) { tryShowHalfTokenTutorial();
     if (playerFullTokens > 0) { playerFullTokens--; playerFlashTokens++; }
     else if (playerFlashTokens > 0) { playerFlashTokens--; }
   } else if (loseTurn) {
-    if (playerFlashTokens > 0) { playerFlashTokens--; }
-    else if (playerFullTokens > 0) { playerFullTokens--; }
-    if (playerFlashTokens > 0) { playerFlashTokens--; }
-    else if (playerFullTokens > 0) { playerFullTokens--; }
+    // miss：扣 2 個圖示，有 half 先扣 half（代替一個 full），再扣剩餘 full
+    var _toFlash = Math.min(1, playerFlashTokens);
+    playerFlashTokens -= _toFlash;
+    playerFullTokens  -= Math.min(2 - _toFlash, playerFullTokens);
   } else {
     if (playerFlashTokens > 0) { playerFlashTokens--; }
     else if (playerFullTokens > 0) { playerFullTokens--; }
@@ -1085,14 +1109,14 @@ function consumePlayerToken(bonusTurn, loseTurn) {
 }
 
 function consumeEnemyToken(bonusTurn, loseTurn) {
-  if (bonusTurn) { tryShowHalfTokenTutorial(); playSound("flash_token");
+  if (bonusTurn) { tryShowHalfTokenTutorial();
     if (enemyFullTokens > 0) { enemyFullTokens--; enemyFlashTokens++; }
     else if (enemyFlashTokens > 0) { enemyFlashTokens--; }
   } else if (loseTurn) {
-    if (enemyFlashTokens > 0) { enemyFlashTokens--; }
-    else if (enemyFullTokens > 0) { enemyFullTokens--; }
-    if (enemyFlashTokens > 0) { enemyFlashTokens--; }
-    else if (enemyFullTokens > 0) { enemyFullTokens--; }
+    // miss：扣 2 個圖示，有 half 先扣 half（代替一個 full），再扣剩餘 full
+    var _toFlash = Math.min(1, enemyFlashTokens);
+    enemyFlashTokens -= _toFlash;
+    enemyFullTokens  -= Math.min(2 - _toFlash, enemyFullTokens);
   } else {
     if (enemyFlashTokens > 0) { enemyFlashTokens--; }
     else if (enemyFullTokens > 0) { enemyFullTokens--; }
@@ -1152,6 +1176,7 @@ function _animateTokenConsume(elId, isFlashFirst, consumeFn) {
 
 function animatePlayerTokenConsume(bonusTurn, loseTurn) {
   _animateTokenConsume("pt-player-tokens", true, function() {
+    if (bonusTurn && playerFullTokens > 0) playSound("flash_token");  // ◆→◈ 轉換發生時
     consumePlayerToken(bonusTurn, loseTurn);
   });
 }
@@ -1165,7 +1190,10 @@ function animateEnemyTokenConsume(bonusTurn, loseTurn) {
     var target = container.querySelector(".pt-token--full") || container.querySelector(".pt-token--flash");
     if (target) {
       target.classList.add("pt-token--convert");
-      setTimeout(function() { consumeEnemyToken(true, false); updateTokenDisplay(); }, 260);
+      setTimeout(function() {
+        if (enemyFullTokens > 0) playSound("flash_token");  // ◆→◈ 轉換發生時
+        consumeEnemyToken(true, false); updateTokenDisplay();
+      }, 260);
     } else {
       consumeEnemyToken(true, false); updateTokenDisplay();
     }
@@ -1181,6 +1209,43 @@ function animateEnemyTokenConsume(bonusTurn, loseTurn) {
   }
 }
 
+// ── Miss 動畫：依規則連續消耗兩個圖示（full 優先，half 補一個）──
+function _consumeOneTokenVisual(container, preferFull, onDone) {
+  var target = preferFull
+    ? (container.querySelector(".pt-token--full") || container.querySelector(".pt-token--flash"))
+    : (container.querySelector(".pt-token--flash") || container.querySelector(".pt-token--full"));
+  if (target) {
+    target.classList.remove("pt-token--flash");
+    target.classList.add("pt-token--consumed");
+    setTimeout(onDone, 220);
+  } else {
+    onDone();
+  }
+}
+function animatePlayerTokenMiss() {
+  var container = document.getElementById("pt-player-tokens");
+  if (!container) { consumePlayerToken(false, true); updateTokenDisplay(); return; }
+  // 先消耗 half（若有），再消耗 full
+  var preferFlashFirst = playerFlashTokens > 0;
+  _consumeOneTokenVisual(container, !preferFlashFirst, function() {
+    _consumeOneTokenVisual(container, true, function() {
+      consumePlayerToken(false, true);
+      updateTokenDisplay();
+    });
+  });
+}
+function animateEnemyTokenMiss() {
+  var container = document.getElementById("pt-enemy-tokens");
+  if (!container) { consumeEnemyToken(false, true); updateTokenDisplay(); return; }
+  var preferFlashFirst = enemyFlashTokens > 0;
+  _consumeOneTokenVisual(container, !preferFlashFirst, function() {
+    _consumeOneTokenVisual(container, true, function() {
+      consumeEnemyToken(false, true);
+      updateTokenDisplay();
+    });
+  });
+}
+
 function animatePlayerTokenPass(isFlashConsume) {
   var container = document.getElementById("pt-player-tokens");
   if (!container) {
@@ -1193,6 +1258,7 @@ function animatePlayerTokenPass(isFlashConsume) {
   if (target) {
     target.classList.add(isFlashConsume ? "pt-token--consumed" : "pt-token--convert");
     setTimeout(function() {
+      if (!isFlashConsume) playSound("flash_token");  // ◆→◈ 轉換發生時（待機）
       if (isFlashConsume) { playerFlashTokens--; } else { playerFullTokens--; playerFlashTokens++; }
       updateTokenDisplay();
     }, isFlashConsume ? 300 : 260);
@@ -1700,7 +1766,7 @@ function getScaledPrice(item) {
 
 function buyShopItem(item) {
   if (isStatCapped(item)) {
-    showShopMessage("❌ 已達上限，無法繼續升級！"); return;
+    //showShopMessage("❌ 已達上限，無法繼續升級！"); return;
   }
   var price = getScaledPrice(item);
   if (currentPlayer.money < price) {
@@ -2083,8 +2149,9 @@ function executeCombatRound(action) {
     }
     if (result.playerDefense) isPlayerDefending = true;
     if (COMBAT_MODE === "press_turn") {
-      if (!result.playerDefense) logMessage("⚠ 未命中！額外失去一個圖示！");
-      animatePlayerTokenConsume(false, !result.playerDefense);
+      if (!result.playerDefense) logMessage("⚠ 未命中！失去兩個圖示！");
+      if (!result.playerDefense) animatePlayerTokenMiss();
+      else animatePlayerTokenConsume(false, false);
     }
     setTimeout(function() { processAllyTurns(runEnemyPhase); }, 600);
     return;
@@ -2181,7 +2248,7 @@ function executeCombatRound(action) {
 
     // Consume player token now (before death animation)
     if (COMBAT_MODE === "press_turn") {
-      if      (result.bonusTurn) logMessage("★ 圖示轉為閃爍，獲得額外行動！");
+      if      (result.bonusTurn && playerFullTokens > 0) logMessage("★ 圖示轉為閃爍，獲得額外行動！");
       else if (result.loseTurn)  logMessage("⚠ 攻擊被閃開！額外失去一個圖示！");
       animatePlayerTokenConsume(result.bonusTurn, result.loseTurn);
     }
@@ -2214,7 +2281,7 @@ function executeCombatRound(action) {
   }
 
   if (COMBAT_MODE === "press_turn") {
-    if      (result.bonusTurn) logMessage("★ 圖示轉為閃爍，獲得額外行動！");
+    if      (result.bonusTurn && playerFullTokens > 0) logMessage("★ 圖示轉為閃爍，獲得額外行動！");
     else if (result.loseTurn)  logMessage("⚠ 攻擊被閃開！額外失去一個圖示！");
     animatePlayerTokenConsume(result.bonusTurn, result.loseTurn);
     setTimeout(function() { processAllyTurns(runEnemyPhase); }, 600);
@@ -2853,7 +2920,7 @@ function upgradeAlly(allyId, stat) {
   if (!ally.upgrades) ally.upgrades = { atk: 0, def: 0, maxHp: 0 };
 
   var level = ally.upgrades[stat] || 0;
-  if (level >= 3) { showShopMessage("已達最大升級次數！"); return; }
+  if (level >= 3) return;
 
   var baseCosts  = { atk: 30, def: 25, maxHp: 35 };
   var perLevels  = { atk: 20, def: 15, maxHp: 20 };
@@ -2895,10 +2962,11 @@ function buyAlly(def) {
   currentAllies.push({
     id: def.id, name: def.name, icon: def.icon,
     hp: def.maxHp, maxHp: def.maxHp,
-    atk: def.atk, def: def.def,
+    atk: def.atk, def: def.def, spd: def.spd || 10,
     critChance: def.critChance || 0,
     skill: def.skill, skillCooldown: 0, knockedOut: false,
-    upgrades: { atk: 0, def: 0, maxHp: 0 }
+    upgrades: { atk: 0, def: 0, maxHp: 0 },
+    level: 1, exp: 0
   });
   updatePlayerMoney(-def.price);
   playSound("buy");
@@ -2961,7 +3029,7 @@ function runNextEnemyTurn() {
     if (res.miss) {
       playSound("dodge");
       logMessage(res.message || "💨 攻擊未命中！");
-      if (COMBAT_MODE === "press_turn") animateEnemyTokenConsume(false, true);
+      if (COMBAT_MODE === "press_turn") animateEnemyTokenMiss();
       setTimeout(function() { _afterEnemyAction(); }, 500);
       return;
     }
@@ -3033,7 +3101,7 @@ function runNextEnemyTurn() {
     if (res2.miss) {
       playSound("dodge");
       logMessage(res2.message || "💨 攻擊未命中！");
-      if (COMBAT_MODE === "press_turn") animateEnemyTokenConsume(false, true);
+      if (COMBAT_MODE === "press_turn") animateEnemyTokenMiss();
       setTimeout(function() { _afterEnemyAction(); }, 500);
       return;
     }
@@ -3117,7 +3185,7 @@ function runNextEnemyTurn() {
   if (res.miss) {
     playSound("dodge");
     logMessage(res.message || "💨 攻擊未命中！");
-    if (COMBAT_MODE === "press_turn") animateEnemyTokenConsume(false, true);
+    if (COMBAT_MODE === "press_turn") animateEnemyTokenMiss();
     setTimeout(function() { _afterEnemyAction(); }, 500);
     return;
   }
@@ -3213,9 +3281,85 @@ function startNewCombatRound() {
   setCombatButtonsEnabled(true);
 }
 
+
+// ── 等級與經驗值系統 ─────────────────────────────────────────
+function gainExp(char, amount) {
+  if (!MAX_LEVEL || !LEVEL_QUOTAS) return;
+  char.exp   = (char.exp   || 0) + amount;
+  char.level = (char.level || 1);
+  var leveled = false;
+  while (char.level < MAX_LEVEL) {
+    var quota = LEVEL_QUOTAS[char.level - 1];
+    if (char.exp >= quota) {
+      char.exp -= quota;
+      char.level++;
+      char.maxHp += LEVELUP_BONUS.hp;
+      char.hp     = Math.min(char.hp + LEVELUP_BONUS.hp, char.maxHp);
+      char.def   += LEVELUP_BONUS.def;
+      char.spd   += LEVELUP_BONUS.spd;
+      leveled = true;
+    } else { break; }
+  }
+  if (char.level >= MAX_LEVEL) char.exp = Math.min(char.exp, LEVEL_QUOTAS[MAX_LEVEL - 2] || 0);
+  return leveled;
+}
+
+// ── 升級光圈動畫 ─────────────────────────────────────────────
+function showLevelUpEffect(char) {
+  var partyArea = document.getElementById("combat-party-area");
+  if (!partyArea) return;
+  var partyIdx = (char === currentPlayer) ? 0 : (currentAllies.indexOf(char) + 1);
+  if (partyIdx < 0) return;
+  var unit = partyArea.querySelector(".party-unit[data-party-idx='" + partyIdx + "']");
+  if (!unit) return;
+
+  var count    = (typeof LEVELUP_RING_COUNT    !== "undefined") ? LEVELUP_RING_COUNT    : 5;
+  var dur      = (typeof LEVELUP_RING_DURATION !== "undefined") ? LEVELUP_RING_DURATION : 900;
+  var stagger  = (typeof LEVELUP_RING_STAGGER  !== "undefined") ? LEVELUP_RING_STAGGER  : 110;
+  var sizeMin  = (typeof LEVELUP_RING_SIZE_MIN  !== "undefined") ? LEVELUP_RING_SIZE_MIN  : 34;
+  var sizeStep = (typeof LEVELUP_RING_SIZE_STEP !== "undefined") ? LEVELUP_RING_SIZE_STEP : 20;
+  var rise     = (typeof LEVELUP_RING_RISE      !== "undefined") ? LEVELUP_RING_RISE      : 65;
+
+  for (var i = 0; i < count; i++) {
+    (function(idx) {
+      setTimeout(function() {
+        var ring = document.createElement("div");
+        ring.className = "levelup-ring";
+        var sz = sizeMin + idx * sizeStep;
+        ring.style.width  = sz + "px";
+        ring.style.height = sz + "px";
+        ring.style.setProperty("--dur",  dur  + "ms");
+        ring.style.setProperty("--rise", rise + "px");
+        unit.appendChild(ring);
+        setTimeout(function() {
+          if (ring.parentNode) ring.parentNode.removeChild(ring);
+        }, dur + 80);
+      }, idx * stagger);
+    })(i);
+  }
+}
+
 function giveEnemyReward() {
   var reward = currentEnemy.reward;
   if (reward && reward.money) { updatePlayerMoney(reward.money); showCoinDrop(reward.money); }
+  // 經驗值分配給所有存活成員
+  if (reward && reward.exp) {
+    var expAmt = reward.exp;
+    var recipients = [currentPlayer];
+    currentAllies.forEach(function(a) { if (!a.knockedOut) recipients.push(a); });
+    var anyLevelUp = false;
+    recipients.forEach(function(c) {
+      var leveled = gainExp(c, expAmt);
+      if (leveled) {
+        logMessage("🌟 「" + c.name + "」升到 Lv." + c.level + "！HP/DEF/SPD 提升！");
+        showLevelUpEffect(c);
+        anyLevelUp = true;
+      }
+    });
+    if (anyLevelUp) playSound("level_up");
+    logMessage("✨ 獲得 " + expAmt + " 經驗值！");
+    updateHUD();
+  }
 
   var hpGain = Math.min(28, 10 + Math.floor(currentEnemy.maxHp / 10));
   if (hpGain > 0) { updatePlayerHp(hpGain); logMessage("💚 戰鬥後恢復了 " + hpGain + " 點 HP！"); }
@@ -3325,6 +3469,8 @@ function restartGame() {
   if (_tut.combatEnabled) { _tut.combatIntroDone = false; _tut.halfTokenDone = false; _tut.missDone = false; _tut.combatDone = false; }
   gameOver = false;
   player.x = playerStart.x; player.y = playerStart.y;
+  currentPlayer.level       = playerStats.level || 1;
+  currentPlayer.exp         = playerStats.exp   || 0;
   currentPlayer.hp        = playerStats.hp;
   currentPlayer.maxHp     = playerStats.maxHp;
   currentPlayer.atk       = playerStats.atk;

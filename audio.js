@@ -45,8 +45,9 @@ var AudioSystem = (function () {
     shield     : null,
     dodge      : { src: "assets/audio/SFX/dodge.mp3",  volume: 0.5 },
     attack     : { src: "assets/audio/SFX/attack.wav", volume: 1.0 },
-    flash_token: { src: "assets/audio/SFX/flash.wav",  volume: 0.8 },
+    flash_token: { src: "assets/audio/SFX/flash.wav",  volume: 0.2 },
     victory    : null,
+    level_up   : null,
     defeat     : null,
     flee       : null,
     chest      : { src: "assets/audio/SFX/open_chest.mp3", volume: 0.5 },
@@ -78,10 +79,10 @@ var AudioSystem = (function () {
   // ============================================================
   var BGM_TRACKS = {
     map: {
-      src       : null,   // 尚無音檔
-      volume    : 0.6,
-      loopStart : 0,
-      loopEnd   : null
+      src       : "assets/audio/Maze.mp3",
+      volume    : 0.4,
+      loopStart : 18.9,
+      loopEnd   : 86.3
     },
     battle1: {
       src       : "assets/audio/bgm_battle1.mp3",
@@ -151,7 +152,7 @@ var AudioSystem = (function () {
     map      : "map",
     combat   : "battle1",  // 一般戰鬥 → battle BGM
     boss     : "boss",     // ← 此項由 triggerFinalBoss 另行觸發
-    shop     : "shop",
+    shop     : "map",   // 與迷宮同一首，接續播放不重啟
     minigame : "minigame",
     gameover : "gameover",
     clear    : "clear",
@@ -166,6 +167,28 @@ var AudioSystem = (function () {
   var currentBgmGain   = null; // 正在播放的 BGM GainNode
   var currentBgmName   = null; // 正在播放的音軌名稱
   var bgmMasterVolume  = 1.0;  // BGM 主音量倍率 0.0 ~ 1.0
+
+  // ── BGM Duck（子頁面覆蓋時音量降低）────────────────────────
+  var BGM_DUCK_FACTOR = 0.8;  // 開啟覆蓋層時的音量倍率（0~1，可調）
+  var _bgmDuckCount   = 0;     // 計數器：支援多層 overlay 同時開著
+
+  // ── BGM 淡入 / 淡出 ─────────────────────────────────────────
+  var BGM_FADE_IN    = 1.2;   // 淡入時長（秒）
+  var BGM_FADE_OUT   = 0.8;   // 淡出時長（秒）
+  var BGM_FADE_DELAY = 0.3;   // 淡入前靜音時長（秒）
+  var _bgmFadingIn   = false; // 淡入進行中 flag（避免 duck 打斷 ramp）
+  var _bgmPausedTrack = null; // 音量歸零前記住的音軌，恢復時重播
+
+  function _applyCurrentGain() {
+    if (!currentBgmGain || !currentBgmName || !BGM_TRACKS[currentBgmName]) return;
+    if (_bgmFadingIn) return;  // 淡入進行中，不打斷 ramp
+    var baseVol  = BGM_TRACKS[currentBgmName].volume || 1.0;
+    var duckMult = (_bgmDuckCount > 0) ? BGM_DUCK_FACTOR : 1.0;
+    currentBgmGain.gain.value = baseVol * bgmMasterVolume * duckMult;
+  }
+
+  function duckBgm()   { _bgmDuckCount++;                                 _applyCurrentGain(); }
+  function unduckBgm() { _bgmDuckCount = Math.max(0, _bgmDuckCount - 1); _applyCurrentGain(); }
 
   // ── 初始化 ────────────────────────────────────────────────
   function init() {
@@ -242,6 +265,7 @@ var AudioSystem = (function () {
    * @param {chest} name
    * @param {dodge} name
    * @param {teleport} name
+   * @param {level_up} name
    */
   function playSfx(name) {
     if (!ctx || !sfxBuffers[name]) return;
@@ -329,16 +353,29 @@ var AudioSystem = (function () {
     source.loop   = true;
 
     // ── Loop 起始 / 結束點 ──────────────────────────────────
-    var loopStart = (track.loopStart != null) ? Number(track.loopStart) : 0;
-    var loopEnd   = (track.loopEnd   != null && track.loopEnd > 0)
-                    ? Number(track.loopEnd)
+    var loopStart = (track.loopStart != null)
+                    ? Math.min(Number(track.loopStart), buf.duration)
+                    : 0;
+    var loopEnd   = (track.loopEnd != null && track.loopEnd > 0)
+                    ? Math.min(Number(track.loopEnd), buf.duration)
                     : buf.duration;   // null / 0 → 播到結尾
+    // 確保 loopEnd > loopStart，否則 loop 會卡死
+    if (loopEnd <= loopStart) loopEnd = buf.duration;
 
     source.loopStart = loopStart;
     source.loopEnd   = loopEnd;
 
-    // ── 音量 ────────────────────────────────────────────────
-    gain.gain.value = (track.volume || 1.0) * bgmMasterVolume;
+    // ── 音量（淡入：靜音 BGM_FADE_DELAY 秒後再線性增至目標）──
+    var duckMult  = (_bgmDuckCount > 0) ? BGM_DUCK_FACTOR : 1.0;
+    var targetVol = (track.volume || 1.0) * bgmMasterVolume * duckMult;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    // BGM_FADE_DELAY 秒靜音後開始淡入
+    gain.gain.setValueAtTime(0, ctx.currentTime + BGM_FADE_DELAY);
+    gain.gain.linearRampToValueAtTime(targetVol,
+      ctx.currentTime + BGM_FADE_DELAY + BGM_FADE_IN);
+    _bgmFadingIn = true;
+    setTimeout(function() { _bgmFadingIn = false; },
+      (BGM_FADE_DELAY + BGM_FADE_IN) * 1000 + 50);
 
     source.connect(gain);
     gain.connect(ctx.destination);
@@ -353,8 +390,9 @@ var AudioSystem = (function () {
    * 停止目前播放的 BGM（含 0.3 秒淡出）。
    */
   function stopBgm() {
+    _bgmFadingIn = false;  // 取消淡入 flag，讓 gain 可自由設定
     if (currentBgmSource) {
-      var FADE = 0.3;
+      var FADE = BGM_FADE_OUT;
       var src  = currentBgmSource;
       var gain = currentBgmGain;
       if (gain && ctx) {
@@ -386,10 +424,25 @@ var AudioSystem = (function () {
    * @param {number} vol  0.0（靜音）～ 1.0（最大）
    */
   function setBgmVolume(vol) {
+    var wasZero = (bgmMasterVolume === 0);
     bgmMasterVolume = Math.max(0, Math.min(1, Number(vol) || 0));
-    if (currentBgmGain && currentBgmName && BGM_TRACKS[currentBgmName]) {
-      var baseVol = BGM_TRACKS[currentBgmName].volume || 1.0;
-      currentBgmGain.gain.value = baseVol * bgmMasterVolume;
+    var isZero = (bgmMasterVolume === 0);
+
+    if (!wasZero && isZero) {
+      // 非零 → 零：記住音軌並停止
+      _bgmPausedTrack = currentBgmName;
+      stopBgm();
+    } else if (wasZero && !isZero) {
+      // 零 → 非零：恢復播放
+      if (_bgmPausedTrack) {
+        var _t = _bgmPausedTrack;
+        _bgmPausedTrack = null;
+        playBgm(_t);
+      } else {
+        _applyCurrentGain();
+      }
+    } else {
+      _applyCurrentGain();
     }
   }
 
@@ -454,6 +507,8 @@ var AudioSystem = (function () {
     stopBgm          : stopBgm,
     playBgmForSituation : playBgmForSituation,
     setBgmVolume     : setBgmVolume,
+    duckBgm          : duckBgm,
+    unduckBgm        : unduckBgm,
     // 進階
     setTrackLoop     : setTrackLoop,
     setTrackVolume   : setTrackVolume,

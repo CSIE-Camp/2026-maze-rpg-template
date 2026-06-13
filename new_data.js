@@ -1,7 +1,5 @@
 // ============================================================
 //  new_data.js  ── 遊戲資料設定檔（所有數值、常數、文本）
-//  原始來源：data.js + student.js（PLAYER_DMG_CAP）
-//            + engine.js（CAM_ZOOM / TILE_SIZE / VIEW_PX / STAT_CAP）
 // ============================================================
 
 
@@ -11,8 +9,21 @@ var TILE_SIZE = 60;    // 每格原始像素（不改）
 var VIEW_PX   = 540;   // viewport 像素（不改）
 
 
+// ── 等級系統 ──────────────────────────────────────────────────
+var MAX_LEVEL    = 5;                       // 等級上限（調小可快速測試）
+var LEVEL_QUOTAS = [30, 60, 110, 180];      // 每級升級所需 EXP（索引 0 = Lv1→2）
+var LEVELUP_BONUS = { hp: 15, def: 1, spd: 2 }; // 每次升級加成
+
+// ── 升級特效設定（光圈動畫）────────────────────────────────────
+var LEVELUP_RING_COUNT    = 5;    // 光圈數量
+var LEVELUP_RING_DURATION = 900;  // 單圈動畫時長（ms）
+var LEVELUP_RING_STAGGER  = 110;  // 每圈啟動間隔（ms）
+var LEVELUP_RING_SIZE_MIN = 34;   // 最小光圈直徑（px）
+var LEVELUP_RING_SIZE_STEP = 20;  // 每圈直徑增量（px）
+var LEVELUP_RING_RISE     = 65;   // 光圈上浮距離（px）
+
 // ── 戰鬥模式 & 全域數值上限 ───────────────────────────────────
-var COMBAT_MODE     = "press_turn";
+var COMBAT_MODE     = "press_turn"; //or "tradition"
 var ENEMY_BASE_TOKENS = 1;         // 敵方基礎圖示數（單體敵人）
 var PLAYER_DMG_CAP  = 20;          // 連斬單目標傷害上限
 var STAT_CAP        = { atk: 40, def: 25, hp: 160 };
@@ -34,36 +45,37 @@ var playerStats = {
   maxHp:  1000,
   atk:    10,
   def:    5,
-  spd:    20,
+  spd:    10,
   money:  10000,
   keys:   0,
-  skills: ["power_strike"]
+  skills: ["power_strike"],
+  level: 1, exp: 0
 };
 
 
 // ── 敵人列表（tier: "A" / "B" / "C" 對應迷宮區域） ──────────
 var enemies = [
   // A 區（Tier 1）
-  { name: "哥布林",   tier: "A", hp: 42,  maxHp: 42,  atk:  9, def: 3, spd:  5, reward: { money: 22 } },
-  { name: "狼人",     tier: "A", hp: 60,  maxHp: 60,  atk: 10, def: 4, spd:  8, reward: { money: 27 } },
-  { name: "泥巴怪",   tier: "A", hp: 56,  maxHp: 56,  atk: 13, def: 5, spd:  4, reward: { money: 28 } },
-  { name: "惡魔蝙蝠", tier: "A", hp: 38,  maxHp: 38,  atk: 12, def: 2, spd: 12, reward: { money: 25 } },
+  { name: "哥布林",   tier: "A", hp: 42,  maxHp: 42,  atk:  9, def: 3, spd:  5, reward: { exp: 11, money: 22 } },
+  { name: "狼人",     tier: "A", hp: 60,  maxHp: 60,  atk: 10, def: 4, spd:  8, reward: { exp: 14, money: 27 } },
+  { name: "泥巴怪",   tier: "A", hp: 56,  maxHp: 56,  atk: 13, def: 5, spd:  4, reward: { exp: 14, money: 28 } },
+  { name: "惡魔蝙蝠", tier: "A", hp: 38,  maxHp: 38,  atk: 12, def: 2, spd: 12, reward: { exp: 13, money: 25 } },
   // B 區（Tier 2）
-  { name: "骷髏騎士",  tier: "B", hp: 250, maxHp: 250, atk: 15, def: 10, spd:  7, reward: { money: 67 } },
-  { name: "Error404★", tier: "B", hp: 10,  maxHp: 10,  atk: 27, def:  0, spd: 15, reward: { money: 90 }, isMiniBarrier: true, noOneShot: true },
-  { name: "史萊姆",    tier: "B", hp: 190, maxHp: 190, atk: 20, def:  8, spd:  5, reward: { money: 73 } },
-  { name: "石像",      tier: "B", hp: 120, maxHp: 120, atk: 17, def:  5, spd:  3, reward: { money: 77 }, isPaired: true },
+  { name: "骷髏騎士",  tier: "B", hp: 250, maxHp: 250, atk: 15, def: 10, spd:  7, reward: { exp: 34, money: 67 } },
+  { name: "Error404★", tier: "B", hp: 10,  maxHp: 10,  atk: 27, def:  0, spd: 15, reward: { exp: 45, money: 90 }, isMiniBarrier: true, noOneShot: true },
+  { name: "史萊姆",    tier: "B", hp: 190, maxHp: 190, atk: 20, def:  8, spd:  5, reward: { exp: 37, money: 73 } },
+  { name: "石像",      tier: "B", hp: 120, maxHp: 120, atk: 17, def:  5, spd:  3, reward: { exp: 39, money: 77 }, isPaired: true },
   // C 區（Tier 3）
-  { name: "死靈法師",  tier: "C", hp: 420, maxHp: 420, atk: 34, def: 15, spd: 10, reward: { money: 80 } },
-  { name: "眼球怪",    tier: "C", hp: 510, maxHp: 510, atk: 28, def: 18, spd: 13, reward: { money: 94 } },
-  { name: "冥界雙衛",  tier: "C", hp: 200, maxHp: 200, atk: 34, def: 12, spd:  9, reward: { money: 85 }, isPaired: true }
+  { name: "死靈法師",  tier: "C", hp: 420, maxHp: 420, atk: 34, def: 15, spd: 10, reward: { exp: 50, money: 80 } },
+  { name: "眼球怪",    tier: "C", hp: 510, maxHp: 510, atk: 28, def: 18, spd: 13, reward: { exp: 55, money: 94 } },
+  { name: "冥界雙衛",  tier: "C", hp: 200, maxHp: 200, atk: 34, def: 12, spd:  9, reward: { exp: 52, money: 85 }, isPaired: true }
 ];
 
 // ── 最終 Boss ─────────────────────────────────────────────────
 // HP 低於 60% 時召喚 1~3 個分身（各 HP 20）
 var finalBoss = {
   name: "黑暗魔王", hp: 1250, maxHp: 1250, atk: 53, def: 20, spd: 18,
-  reward: { money: 150 }
+  reward: { exp: 200, money: 150 }
 };
 
 
@@ -126,17 +138,17 @@ var shopItems = [
 // ── 同伴定義（商店招募，最多 2 人） ──────────────────────────
 var allyDefs = [
   { id: "archer", name: "弓箭手", icon: "🏹",
-    hp: 80, maxHp: 80, atk: 18, def: 3, spd: 25, price: 1, critChance: 0.5,
+    hp: 80, maxHp: 80, atk: 18, def: 3, spd: 12, price: 1, critChance: 0.5,
     skill: { id: "volley",     name: "箭雨",   icon: "🌧️",
              desc: "攻擊全體敵人各造成 ATK 點傷害（冷卻 3 回合）",
              isAoe: true,  multiplier: 1, cooldown: 2, baseHit: 80 } },
   { id: "wizard", name: "法師",   icon: "🧙",
-    hp: 55, maxHp: 55, atk: 22, def: 2, spd: 30, price: 100,
+    hp: 55, maxHp: 55, atk: 22, def: 2, spd: 8, price: 100,
     skill: { id: "blizzard",   name: "冰矛",   icon: "❄️",
              desc: "對單體造成 ATK×2 點傷害（冷卻 3 回合）",
              isAoe: false, multiplier: 2, cooldown: 3, baseHit: 85 } },
   { id: "knight", name: "聖騎士", icon: "⚔️",
-    hp: 130, maxHp: 130, atk: 14, def: 26, spd: 18, price: 100,
+    hp: 130, maxHp: 130, atk: 14, def: 26, spd: 10, price: 100,
     skill: { id: "holy_guard", name: "護衛",   icon: "🔰",
              desc: "本回合替玩家承受敵人攻擊（以自身 DEF 減傷，冷卻 3 回合）",
              isTaunt: true, multiplier: 0, cooldown: 3 } }
@@ -150,20 +162,4 @@ var MG_ENEMY_DURATION = 1500;
 var MG_SPAWN_INTERVAL = 1000;
 
 
-// ── 對話文本 ──────────────────────────────────────────────────
-var dialogues = {
-  intro: [
-    { speaker: "",       text: "黑暗迷宮的大門，緩緩地打開了..." },
-    { speaker: "勇者",   text: "這裡就是傳說中的黑暗迷宮嗎？" },
-    { speaker: "勇者",   text: "不管如何，我一定要找到出口！" }
-  ],
-  boss_pre: [
-    { speaker: "黑暗魔王", text: "哦？沒想到你居然能來到這裡。" },
-    { speaker: "黑暗魔王", text: "你的勇氣值得讚揚。但也僅止於此了。" },
-    { speaker: "勇者",     text: "魔王！今天就是你的末日！" }
-  ],
-  shop_first: [
-    { speaker: "神秘商人", text: "旅行者，你看起來精疲力竭啊。" },
-    { speaker: "神秘商人", text: "我這裡有不少好東西，要看看嗎？" }
-  ]
-};
+// ── 對話文本 ────────────────────────�
