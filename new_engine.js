@@ -5,6 +5,30 @@
 // ============================================================
 
 
+// ── 角色圖片路徑查詢 ─────────────────────────────────────────────
+var _charImageMap = {
+  "哥布林": "assets/picture/哥布林.png",
+  "狼人": "assets/picture/狼人.png",
+  "泥巴怪": "assets/picture/泥巴怪.png",
+  "惡魔蝙蝠": "assets/picture/惡魔蝙蝠.png",
+  "骷髏騎士": "assets/picture/骷髏騎士.png",
+  "Error404★": "assets/picture/Error404.png",
+  "史萊姆": "assets/picture/史萊姆.png",
+  "遠古圖騰": "assets/picture/遠古圖騰.png",
+  "死靈法師": "assets/picture/死靈法師.png",
+  "眼球怪": "assets/picture/眼球怪.png",
+  "冥界雙衛": "assets/picture/冥界雙衛.png",
+  "黑暗巨龍": "assets/picture/黑暗巨龍.png",
+  "魔王小兵": "assets/picture/魔王小兵.png",
+  "弓箭手": "assets/picture/弓箭手.png",
+  "法師": "assets/picture/法師.png",
+  "聖騎士": "assets/picture/聖騎士.png",
+  "勇者": "assets/picture/玩家.png"
+};
+function getCharImage(name) {
+  return _charImageMap[name] || "assets/picture/玩家.png";
+}
+
 // ── 偽隨機數（固定種子） ────────────────────────────────────────
 function makeRng(seed) {
   var s = (seed >>> 0) || 1;
@@ -863,8 +887,8 @@ function showEnemyInfo() {
     skill("⚔️", "普通攻擊（60% 機率）",
       "標準攻擊，造成 ATK 扣除你的 DEF 的傷害。");
   } else if (e.isFinalBoss) {
-    skill("🔱", "召喚分身（被動，25% 每回合）",
-      "無分身時，召喚 1~3 個魔王分身（HP 20、ATK " + e.atk + "、每個各自攻擊）。");
+    skill("🔱", "召喚小兵（被動，25% 每回合）",
+      "無小兵時，召喚 1~3 個魔王小兵（HP 20、ATK " + e.atk + "、每個各自攻擊）。");
     skill("👁️", "黑暗壓制（被動，25% 每回合）",
       "ATK-5 攻擊，使你的攻擊力接下來 2 回合減半（不與壓制中重疊）。");
     skill("😈", "狂暴（HP < 40% 必定觸發）",
@@ -873,7 +897,7 @@ function showEnemyInfo() {
       "ATK " + e.atk + " 扣除你的 DEF 造成傷害。");
   } else if (e.isClone) {
     skill("⚡", "合體衝擊",
-      "所有分身同時攻擊，傷害累加（各 ATK " + e.atk + " - DEF）。");
+      "所有小兵同時攻擊，傷害累加（各 ATK " + e.atk + " - DEF）。");
   } else {
     skill("⚡", "普通攻擊",
       "ATK " + e.atk + " 扣除你的 DEF 造成傷害（min 1）。");
@@ -1291,14 +1315,14 @@ function renderMap() {
         if (x === player.x && y === player.y) {
           tile.classList.add("tile--player");
           var img = document.createElement("img");
-          img.src = "assets/picture/player.png"; img.alt = "玩家"; img.className = "sprite";
+          img.src = "assets/picture/玩家.png"; img.alt = "玩家"; img.className = "sprite";
           tile.appendChild(img);
         } else {
-          applyTileStyle(tile, currentMap[y][x]);
+          applyTileStyle(tile, currentMap[y][x], x, y);
         }
       } else if (isExplored) {
         tile.classList.add("tile--explored");
-        applyTileStyle(tile, currentMap[y][x]);
+        applyTileStyle(tile, currentMap[y][x], x, y);
       } else {
         tile.classList.add("tile--hidden");
       }
@@ -1322,21 +1346,27 @@ function applyCameraTransform() {
   visionRadius = Math.ceil(half);
 }
 
-function applyTileStyle(tile, tileType) {
+function applyTileStyle(tile, tileType, tx, ty) {
   var sm = {};
   sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
   sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.CHEST]      = { cls: "tile--chest",    src: "assets/picture/chest.png",  alt: "寶箱",   emoji: "📦" };
-  sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: "assets/picture/enemy.png",  alt: "敵人",   emoji: "👺" };
-  sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/door.png",   alt: "門",     emoji: "🚪" };
-  sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "",                          alt: "小遊戲", emoji: "🌀" };
-  sm[MAP_TILE.SHOP]       = { cls: "tile--shop",     src: "",                          alt: "商店",   emoji: "🛒" };
-  sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/boss.png",   alt: "魔王",   emoji: "👿" };
-  sm[MAP_TILE.PORTAL]     = { cls: "tile--portal",   src: "",                          alt: "傳送門", emoji: "⚡" };
+  sm[MAP_TILE.CHEST]      = { cls: "tile--chest",    src: "assets/picture/寶箱.png",     alt: "寶箱",   emoji: "📦" };
+  sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: "",                           alt: "敵人",   emoji: "👺" };
+  sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/門鎖.png",    alt: "門",     emoji: "🚪" };
+  sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "assets/picture/小遊戲靶.png", alt: "小遊戲", emoji: "🌀" };
+  sm[MAP_TILE.SHOP]       = { cls: "tile--shop",     src: "assets/picture/商店.png",     alt: "商店",   emoji: "🛒" };
+  sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/黑暗巨龍.png", alt: "魔王",   emoji: "👿" };
+  sm[MAP_TILE.PORTAL]     = { cls: "tile--portal",   src: "assets/picture/傳送門.png",   alt: "傳送門", emoji: "⚡" };
 
   var info = sm[tileType];
   if (!info) { tile.classList.add("tile--empty"); return; }
   tile.classList.add(info.cls);
+
+  if (tileType === MAP_TILE.ENEMY && tx !== undefined && ty !== undefined) {
+    var ed = _pickEnemy(tx, ty);
+    if (ed) { info = { cls: info.cls, src: getCharImage(ed.name), alt: ed.name, emoji: "👺" }; }
+  }
+
   if (info.src) {
     var img = document.createElement("img");
     img.src = info.src; img.alt = info.alt; img.className = "sprite";
@@ -1927,8 +1957,7 @@ function renderEnemyUnits() {
       imgWrap.style.height = size + "px";
 
       var img = document.createElement("img");
-      var isBoss = unit.isFinalBoss || (savedBoss !== null && activeClones.indexOf(unit) !== -1);
-      img.src = isBoss ? "assets/picture/boss.png" : "assets/picture/enemy.png";
+      img.src = getCharImage(unit.name);
       img.className = "battle-sprite enemy-sprite-img";
       img.onerror   = function() { this.style.display = "none"; };
       imgWrap.appendChild(img);
@@ -1962,7 +1991,7 @@ function renderEnemyUnits() {
   var nameEl = document.getElementById("enemy-name");
   if (nameEl) {
     if (activeClones.length > 0) {
-      nameEl.textContent = (savedBoss ? "魔王分身" : (currentEnemy ? currentEnemy.name : "")) + " ×" + activeClones.length;
+      nameEl.textContent = (savedBoss ? "魔王小兵" : (currentEnemy ? currentEnemy.name : "")) + " ×" + activeClones.length;
     } else if (currentEnemy) {
       nameEl.textContent = currentEnemy.name;
     }
@@ -2006,12 +2035,12 @@ function renderPartyUnits() {
     return div;
   }
 
-  area.appendChild(makeUnit(0, "player", "assets/picture/player.png", "🧙",
+  area.appendChild(makeUnit(0, "player", getCharImage(currentPlayer.name), "🧙",
                              currentPlayer.name, false));
 
   for (var i = 0; i < currentAllies.length; i++) {
     var ally = currentAllies[i];
-    area.appendChild(makeUnit(i + 1, "ally", "assets/picture/player.png",
+    area.appendChild(makeUnit(i + 1, "ally", getCharImage(ally.name),
                               ally.icon || "🧑", ally.name, ally.knockedOut));
   }
 }
@@ -2083,7 +2112,7 @@ function updateCombatHint() {
     if (currentEnemy.hp < currentEnemy.maxHp * 0.4) {
       hint = "⚠️ 魔王狂暴中！小心必定連擊＋範圍濺射！";
     } else if (currentEnemy.hp < currentEnemy.maxHp * 0.6) {
-      hint = "👁️ 魔王隨時可能召喚分身或施展壓制！";
+      hint = "👁️ 魔王隨時可能召喚小兵或施展壓制！";
     }
   }
   el.textContent = hint;
@@ -2191,7 +2220,7 @@ function executeCombatRound(action) {
     logMessage(result.message);
     updateCombatEnemyHp();
     if (toKill.length > 0) {
-      logMessage("💀 消滅了 " + toKill.length + " 個分身！");
+      logMessage("💀 消滅了 " + toKill.length + " 個小兵！");
       var area = document.getElementById("combat-enemies-area");
       for (var k = 0; k < toKill.length; k++) {
         (function(dead) {
@@ -2244,7 +2273,7 @@ function executeCombatRound(action) {
 
   if ((bossClonePhase.active || activeClones.length > 0) && currentEnemy.hp <= 0) {
     var deadClone = currentEnemy;
-    logMessage("💀 分身被消滅！");
+    logMessage("💀 小兵被消滅！");
 
     // Consume player token now (before death animation)
     if (COMBAT_MODE === "press_turn") {
@@ -2342,7 +2371,7 @@ function startCloneFight(boss, clones) {
   currentEnemy = activeClones[0];
   renderEnemyUnits();
   isPlayerDefending = false;
-  logMessage("💡 分身登場！使用「連斬」可一次消滅所有分身！");
+  logMessage("💡 小兵登場！使用「連斬」可一次消滅所有小兵！");
   _playerSideQueueCursor = 0;
   if (COMBAT_MODE === "press_turn") {
     playerFullTokens  = calcPlayerTokenCount(); playerFlashTokens = 0;
@@ -2388,7 +2417,7 @@ function endBossClonePhase() {
 
   if (COMBAT_MODE === "press_turn") updateTokenDisplay();
   renderEnemyUnits();
-  logMessage("✅ 分身全數消滅！");
+  logMessage("✅ 小兵全數消滅！");
 
   isPlayerDefending = false;
   _playerSideQueueCursor = 0;
@@ -2651,11 +2680,11 @@ function executeAllyAction(ally, action) {
           }
         }
         removeCloneAndCheckPhaseEnd(target);
-        logMessage("💀 分身被消滅！" + (activeClones.length > 0 ? "剩餘 " + activeClones.length + " 個。" : ""));
+        logMessage("💀 小兵被消滅！" + (activeClones.length > 0 ? "剩餘 " + activeClones.length + " 個。" : ""));
         if (activeClones.length > 0) {
           var en = document.getElementById("enemy-name");
           if (en) en.textContent = (bossClonePhase.active || savedBoss)
-            ? ("魔王分身 ×" + activeClones.length)
+            ? ("魔王小兵 ×" + activeClones.length)
             : (currentEnemy.name + " ×" + activeClones.length);
         }
       }
@@ -2711,7 +2740,7 @@ function executeAllyAction(ally, action) {
       if (activeClones.length > 0) {
         var en2 = document.getElementById("enemy-name");
         if (en2) en2.textContent = (bossClonePhase.active || savedBoss)
-          ? ("魔王分身 ×" + activeClones.length)
+          ? ("魔王小兵 ×" + activeClones.length)
           : (currentEnemy.name + " ×" + activeClones.length);
       }
       updateCombatEnemyHp();
@@ -3073,14 +3102,14 @@ function runNextEnemyTurn() {
     return;
   }
 
-  // ── 情況二：Boss 分身逐一行動 ──
+  // ── 情況二：Boss 小兵逐一行動 ──
   if (bossClonePhase.active && activeClones.length > 0) {
     if (COMBAT_MODE === "press_turn" && enemyFullTokens + enemyFlashTokens <= 0) {
       startNewCombatRound();
       return;
     }
 
-    // 找到下一個存活分身
+    // 找到下一個存活小兵
     var actingClone = null;
     for (var ci = 0; ci < activeClones.length; ci++) {
       var cidx = (enemyCloneTurnCursor + ci) % activeClones.length;
@@ -3093,7 +3122,7 @@ function runNextEnemyTurn() {
     if (!actingClone) { endBossClonePhase(); return; }
 
     var res2 = enemyTurn(currentPlayer, actingClone);
-    var cloneLabel = "分身";
+    var cloneLabel = "小兵";
     var dmg2 = res2.playerDamage || 0;
     var shielded2 = isPlayerDefending || allyShieldActive;
     isPlayerDefending = false; allyShieldActive = false;
@@ -3560,16 +3589,16 @@ function advanceDialogue() {
 //  教學系統
 // ============================================================
 var TUTORIAL_PAGES = [
-  { text: "探索迷宮並打敗最終魔王吧！",                         img: "assets/picture/boss.png" },
-  { text: "擊敗擋路的怪物，順便獲得金幣吧！",                   img: "assets/picture/enemy.png" },
-  { text: "地圖上偶爾也會散落寶箱\n\n經過商店時順便進去看看吧", img: "assets/picture/chest.png" },
-  { text: "透過玩完小遊戲獲得鑰匙以抵達更深處",                  img: "assets/picture/minigame.svg" },
+  { text: "探索迷宮並打敗最終魔王吧！",                         img: "assets/picture/黑暗巨龍.png" },
+  { text: "擊敗擋路的怪物，順便獲得金幣吧！",                   img: "assets/picture/哥布林.png" },
+  { text: "地圖上偶爾也會散落寶箱\n\n經過商店時順便進去看看吧", img: "assets/picture/寶箱.png" },
+  { text: "透過玩完小遊戲獲得鑰匙以抵達更深處",                  img: "assets/picture/小遊戲靶.png" },
   { text: "有時也會出現雙向傳送門\n靠著它去往隱藏地區吧",        img: null }
 ];
 
 var TUTORIAL_SHOP_PAGE = {
   text: "可以透過快捷鍵 F 或點擊\n右側商店按鈕隨時開啟商店！",
-  img: "assets/picture/shop.svg"
+  img: "assets/picture/商店.png"
 };
 
 var _tutorialPages   = [];
@@ -3935,7 +3964,7 @@ function enemyTurn(player, enemy) {
 
   var damage = Math.max(1, getEffectiveAtk(enemy) - getEffectiveDef(player));
 
-  // 先決定是否命中（召喚分身/特殊技能不受命中率影響）
+  // 先決定是否命中（召喚小兵/特殊技能不受命中率影響）
   var enemyWillMiss = !rollHit(enemy, player, BASE_ATTACK_HIT);
 
   if (enemy.isFinalBoss) {
@@ -3946,11 +3975,11 @@ function enemyTurn(player, enemy) {
       var count = Math.floor(Math.random() * 3) + 1;
       var clones = [];
       for (var i = 0; i < count; i++) {
-        clones.push({ name: "魔王分身", hp: 20, maxHp: 20, atk: 35, def: 0, spd: 8,
+        clones.push({ name: "魔王小兵", hp: 20, maxHp: 20, atk: 35, def: 0, spd: 8,
                       reward: { money: 0 }, isClone: true });
       }
       result.summonClones = clones;
-      result.message = "🔱 魔王揮動魔杖，召喚了 " + count + " 個黑暗分身！";
+      result.message = "🔱 魔王揮動魔杖，召喚了 " + count + " 個魔王小兵！";
       return result;
     }
 
@@ -4101,7 +4130,7 @@ function spawnMgEnemy() {
   var ry = Math.floor(Math.random() * (areaH - size));
 
   var enemyEl       = document.createElement("img");
-  enemyEl.src       = "assets/picture/enemy.png";
+  enemyEl.src       = "assets/picture/小遊戲靶.png";
   enemyEl.className = "mg-enemy";
   enemyEl.style.left = rx + "px";
   enemyEl.style.top  = ry + "px";

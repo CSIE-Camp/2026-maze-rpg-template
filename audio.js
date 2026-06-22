@@ -79,49 +79,37 @@ var AudioSystem = (function () {
   // ============================================================
   var BGM_TRACKS = {
     map: {
-      src       : "assets/audio/Maze.mp3",
+      src       : "assets/audio/music/bgm_maze.mp3",
       volume    : 0.4,
       loopStart : 18.9,
       loopEnd   : 86.3
     },
     battle1: {
-      src       : "assets/audio/bgm_battle1.mp3",
-      volume    : 0.8,
-      loopStart : 0,
-      loopEnd   : null
-    },
-    battle2: {
-      src       : null,   // 尚無音檔
+      src       : "assets/audio/music/bgm_battle1.mp3",
       volume    : 0.8,
       loopStart : 0,
       loopEnd   : null
     },
     boss: {
-      src       : "assets/audio/bgm_boss.mp3",
+      src       : "assets/audio/music/bgm_bossfight.mp3",
       volume    : 0.9,
       loopStart : 0,
       loopEnd   : null
     },
-    shop: {
-      src       : null,   // 尚無音檔
-      volume    : 0.5,
-      loopStart : 0,
-      loopEnd   : null
-    },
     clear: {
-      src       : null,   // 尚無音檔
+      src       : "assets/audio/music/bgm_victory.mp3",
       volume    : 0.7,
       loopStart : 0,
       loopEnd   : null
     },
     gameover: {
-      src       : null,   // 尚無音檔
+      src       : "assets/audio/music/bgm_fail.mp3",
       volume    : 0.7,
       loopStart : 0,
       loopEnd   : null
     },
     minigame: {
-      src       : "assets/audio/mini_game.mp3",
+      src       : "assets/audio/music/bgm_mini_game.mp3",
       volume    : 0.9,
       loopStart : 0,
       loopEnd   : null
