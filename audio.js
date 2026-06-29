@@ -160,7 +160,7 @@ var AudioSystem = (function () {
   var bgmMasterVolume  = 1.0;  // BGM 主音量倍率 0.0 ~ 1.0
 
   // ── BGM Duck（子頁面覆蓋時音量降低）────────────────────────
-  var BGM_DUCK_FACTOR = 0.8;  // 開啟覆蓋層時的音量倍率（0~1，可調）
+  var BGM_DUCK_FACTOR = 0.7;  // 開啟覆蓋層時的音量倍率（0~1，可調）
   var _bgmDuckCount   = 0;     // 計數器：支援多層 overlay 同時開著
 
   // ── BGM 淡入 / 淡出 ─────────────────────────────────────────
