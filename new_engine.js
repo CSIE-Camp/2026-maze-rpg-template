@@ -17,6 +17,35 @@ function makeRng(seed) {
 // 每次開啟遊戲時以當下時間產生不同的隨機種子
 var SESSION_SEED = Date.now() & 0xFFFFFFFF;
 
+// ── Buff Tooltip（固定浮層，掛在 body，突破 overflow 限制） ──
+(function() {
+  var tip = document.createElement("div");
+  tip.id = "buff-tooltip";
+  document.body.appendChild(tip);
+
+  var _mx = 0, _my = 0;
+  document.addEventListener("mousemove", function(e) {
+    _mx = e.clientX; _my = e.clientY;
+    if (tip.style.display !== "block") return;
+    var x = _mx + 14, y = _my + 16;
+    if (x + 170 > window.innerWidth)  x = _mx - 170;
+    if (y + 100 > window.innerHeight) y = _my - 100;
+    tip.style.left = x + "px";
+    tip.style.top  = y + "px";
+  });
+  document.addEventListener("mouseover", function(e) {
+    var el = e.target.closest ? e.target.closest("[data-tooltip]") : null;
+    if (!el) { tip.style.display = "none"; return; }
+    tip.textContent = el.dataset.tooltip;
+    var x = _mx + 14, y = _my + 16;
+    if (x + 170 > window.innerWidth)  x = _mx - 170;
+    if (y + 100 > window.innerHeight) y = _my - 100;
+    tip.style.left = x + "px";
+    tip.style.top  = y + "px";
+    tip.style.display = "block";
+  });
+}());
+
 
 // ── 全域遊戲狀態 ──────────────────────────────────────────────
 var player = { x: playerStart.x, y: playerStart.y };
@@ -2132,6 +2161,7 @@ function updateEnemyStatusDisplay() {
       var chip = document.createElement("span");
       chip.className = "phc-effect " + effs[ei].cls;
       chip.textContent = effs[ei].text;
+      if (effs[ei].tooltip) chip.dataset.tooltip = effs[ei].tooltip;
       sdiv.appendChild(chip);
     }
   }
@@ -2874,17 +2904,44 @@ function _getCharEffects(char) {
 
   function _addBuff(stat, cls, label) {
     var b = isParty ? partyBuff[stat] : enemyBuff[stat];
-    if (b.stages > 0) effects.push({ cls: cls+"-up", text: label+" "+"▲".repeat(b.stages)+" ("+b.turnsLeft+")" });
-    if (b.stages < 0) effects.push({ cls: cls+"-dn", text: label+" "+"▼".repeat(-b.stages)+" ("+b.turnsLeft+")" });
+    var skillNames = {
+      atk: { up: isParty ? "塔爾卡加" : "敵方強化", dn: isParty ? "敵方技能" : "塔倫達" },
+      def: { up: isParty ? "拉庫卡加" : "敵方強化", dn: isParty ? "敵方技能" : "拉坤達" },
+      hit: { up: isParty ? "斯庫卡加"  : "敵方強化", dn: isParty ? "敵方技能" : "斯坤達"  }
+    };
+    var bonus = stat === "atk" ? (typeof ATK_STAGE_BONUS !== "undefined" ? ATK_STAGE_BONUS : 5)
+              : stat === "def" ? (typeof DEF_STAGE_BONUS !== "undefined" ? DEF_STAGE_BONUS : 3)
+              : (typeof HIT_STAGE_BONUS !== "undefined" ? HIT_STAGE_BONUS : 10);
+    var agiSpd = (stat === "hit" && typeof AGI_SPD_BONUS !== "undefined") ? AGI_SPD_BONUS : 0;
+    if (b.stages > 0) {
+      var src = skillNames[stat].up;
+      var eff = stat === "hit"
+        ? "命中 +" + (b.stages * bonus) + "%\n閃避等效速度 +" + (b.stages * agiSpd)
+        : label + " +" + (b.stages * bonus) + "（" + b.stages + " 段）";
+      effects.push({ cls: cls+"-up", text: label+" "+"▲".repeat(b.stages)+" ("+b.turnsLeft+")",
+                     tooltip: src + "\n" + eff + "\n剩餘 " + b.turnsLeft + " 回合" });
+    }
+    if (b.stages < 0) {
+      var s = -b.stages;
+      var src = skillNames[stat].dn;
+      var eff = stat === "hit"
+        ? "命中 -" + (s * bonus) + "%\n閃避等效速度 -" + (s * agiSpd)
+        : label + " -" + (s * bonus) + "（" + s + " 段）";
+      effects.push({ cls: cls+"-dn", text: label+" "+"▼".repeat(s)+" ("+b.turnsLeft+")",
+                     tooltip: src + "\n" + eff + "\n剩餘 " + b.turnsLeft + " 回合" });
+    }
   }
   _addBuff("atk", "phc-effect--atk", "ATK");
   _addBuff("def", "phc-effect--def", "DEF");
   _addBuff("hit", "phc-effect--spd", "Agi");
   // 道具臨時加成（不計入段數）
-  if ((char.tempAtk || 0) > 0) effects.push({ cls: "phc-effect--atk-up", text: "ATK+ (∞)" });
-  if ((char.tempDef || 0) > 0) effects.push({ cls: "phc-effect--def-up", text: "DEF+ (∞)" });
+  if ((char.tempAtk || 0) > 0) effects.push({ cls: "phc-effect--atk-up", text: "ATK+ (∞)",
+    tooltip: "道具強化\nATK 臨時提升（本場有效）" });
+  if ((char.tempDef || 0) > 0) effects.push({ cls: "phc-effect--def-up", text: "DEF+ (∞)",
+    tooltip: "道具強化\nDEF 臨時提升（本場有效）" });
   if (char === currentPlayer && playerAtkDebuffTurns > 0)
-    effects.push({ cls: "phc-effect--atk-dn", text: "ATK▼ ("+playerAtkDebuffTurns+")" });
+    effects.push({ cls: "phc-effect--atk-dn", text: "ATK▼ ("+playerAtkDebuffTurns+")",
+      tooltip: "敵方技能\nATK 下降\n剩餘 " + playerAtkDebuffTurns + " 回合" });
 
   return effects;
 }
@@ -2917,11 +2974,12 @@ function _buildPartyCard(icon, name, hp, maxHp, isPlayer, isKO, char) {
     var effs = _getCharEffects(char);
     if (effs.length > 0) {
       var effDiv = document.createElement("div");
-      effDiv.className = "phc-effects";
+      effDiv.className = "phc-effects no-scrollbar";
       effs.forEach(function(e) {
         var chip = document.createElement("span");
         chip.className = "phc-effect " + e.cls;
         chip.textContent = e.text;
+        if (e.tooltip) chip.dataset.tooltip = e.tooltip;
         effDiv.appendChild(chip);
       });
       card.appendChild(effDiv);
@@ -3077,7 +3135,7 @@ function buyAlly(def) {
     showShopMessage("「" + def.name + "」已在隊伍中！"); return;
   }
   currentAllies.push({
-    id: def.id, name: def.name, icon: def.icon,
+    id: def.id, name: def.name, icon: def.icon, img: def.img || null,
     hp: def.maxHp, maxHp: def.maxHp,
     atk: def.atk, def: def.def, spd: def.spd || 10,
     critChance: def.critChance || 0,
@@ -4164,7 +4222,7 @@ function enemyTurn(player, enemy) {
       var clones = [];
       for (var i = 0; i < count; i++) {
         clones.push({ name: "魔王分身", hp: 20, maxHp: 20, atk: 35, def: 0, spd: 8,
-                      reward: { money: 0 }, isClone: true });
+                      reward: { money: 0 }, isClone: true, img: "assets/picture/魔王小兵.png" });
       }
       result.summonClones = clones;
       result.message = "🔱 魔王揮動魔杖，召喚了 " + count + " 個黑暗分身！";

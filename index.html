@@ -186,7 +186,7 @@
 
         <!-- 玩家行動區：輪到玩家才顯示 -->
         <div id="player-action-zone" style="display:none">
-          <div id="combat-buttons">
+          <div id="combat-buttons" class="no-scrollbar">
             <button class="btn btn-attack"  id="btn-attack"  onclick="onAttack()">⚔️ 攻擊</button>
             <button class="btn btn-defend"  id="btn-defend"  onclick="onDefend()">🛡️ 防禦</button>
             <button class="btn btn-flee"    id="btn-flee"    onclick="onFlee()">💨 逃跑</button>
@@ -199,9 +199,9 @@
             <button class="btn btn-flee" style="flex:none;padding:6px 14px" onclick="cancelTargetSelect()">✕ 取消</button>
           </div>
           <!-- 技能行動（由 renderSkillButtons 動態填入） -->
-          <div id="combat-skills"></div>
+          <div id="combat-skills" class="no-scrollbar"></div>
           <!-- 背包消耗品（由 renderInventoryButtons 動態填入） -->
-          <div id="combat-items" style="display:none"></div>
+          <div id="combat-items" class="no-scrollbar" style="display:none"></div>
         </div>
 
         <!-- 同伴行動區：輪到該同伴才顯示 -->
