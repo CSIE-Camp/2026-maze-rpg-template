@@ -1350,7 +1350,7 @@ function renderMap() {
         if (x === player.x && y === player.y) {
           tile.classList.add("tile--player");
           var img = document.createElement("img");
-          img.src = "assets/picture/player.png"; img.alt = "玩家"; img.className = "sprite";
+          img.src = "assets/picture/玩家.png"; img.alt = "玩家"; img.className = "sprite";
           tile.appendChild(img);
         } else {
           applyTileStyle(tile, currentMap[y][x]);
@@ -1385,12 +1385,12 @@ function applyTileStyle(tile, tileType) {
   var sm = {};
   sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
   sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.CHEST]      = { cls: "tile--chest",    src: "assets/picture/chest.png",  alt: "寶箱",   emoji: "📦" };
-  sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: "assets/picture/enemy.png",  alt: "敵人",   emoji: "👺" };
-  sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/door.png",   alt: "門",     emoji: "🚪" };
+  sm[MAP_TILE.CHEST]      = { cls: "tile--chest",    src: "assets/picture/寶箱.png",  alt: "寶箱",   emoji: "📦" };
+  sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: "assets/picture/哥布林.png",  alt: "敵人",   emoji: "👺" };
+  sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/門鎖.png",   alt: "門",     emoji: "🚪" };
   sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "",                          alt: "小遊戲", emoji: "🌀" };
   sm[MAP_TILE.SHOP]       = { cls: "tile--shop",     src: "",                          alt: "商店",   emoji: "🛒" };
-  sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/boss.png",   alt: "魔王",   emoji: "👿" };
+  sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/黑暗巨龍.png",   alt: "魔王",   emoji: "👿" };
   sm[MAP_TILE.PORTAL]     = { cls: "tile--portal",   src: "",                          alt: "傳送門", emoji: "⚡" };
 
   var info = sm[tileType];
@@ -2032,7 +2032,7 @@ function renderEnemyUnits() {
 
       var img = document.createElement("img");
       var isBoss = unit.isFinalBoss || (savedBoss !== null && activeClones.indexOf(unit) !== -1);
-      img.src = isBoss ? "assets/picture/boss.png" : "assets/picture/enemy.png";
+      img.src = isBoss ? "assets/picture/黑暗巨龍.png" : "assets/picture/哥布林.png";
       img.className = "battle-sprite enemy-sprite-img";
       img.onerror   = function() { this.style.display = "none"; };
       imgWrap.appendChild(img);
@@ -2116,12 +2116,12 @@ function renderPartyUnits() {
     return div;
   }
 
-  area.appendChild(makeUnit(0, "player", "assets/picture/player.png", "🧙",
+  area.appendChild(makeUnit(0, "player", "assets/picture/玩家.png", "🧙",
                              currentPlayer.name, false));
 
   for (var i = 0; i < currentAllies.length; i++) {
     var ally = currentAllies[i];
-    area.appendChild(makeUnit(i + 1, "ally", "assets/picture/player.png",
+    area.appendChild(makeUnit(i + 1, "ally", "assets/picture/玩家.png",
                               ally.icon || "🧑", ally.name, ally.knockedOut));
   }
 }
@@ -3701,16 +3701,16 @@ function advanceDialogue() {
 //  教學系統
 // ============================================================
 var TUTORIAL_PAGES = [
-  { text: "探索迷宮並打敗最終魔王吧！",                         img: "assets/picture/boss.png" },
-  { text: "擊敗擋路的怪物，順便獲得金幣吧！",                   img: "assets/picture/enemy.png" },
-  { text: "地圖上偶爾也會散落寶箱\n\n經過商店時順便進去看看吧", img: "assets/picture/chest.png" },
-  { text: "透過玩完小遊戲獲得鑰匙以抵達更深處",                  img: "assets/picture/minigame.svg" },
+  { text: "探索迷宮並打敗最終魔王吧！",                         img: "assets/picture/黑暗巨龍.png" },
+  { text: "擊敗擋路的怪物，順便獲得金幣吧！",                   img: "assets/picture/哥布林.png" },
+  { text: "地圖上偶爾也會散落寶箱\n\n經過商店時順便進去看看吧", img: "assets/picture/寶箱.png" },
+  { text: "透過玩完小遊戲獲得鑰匙以抵達更深處",                  img: "assets/picture/小遊戲靶.png" },
   { text: "有時也會出現雙向傳送門\n靠著它去往隱藏地區吧",        img: null }
 ];
 
 var TUTORIAL_SHOP_PAGE = {
   text: "可以透過快捷鍵 F 或點擊\n右側商店按鈕隨時開啟商店！",
-  img: "assets/picture/shop.svg"
+  img: "assets/picture/商店.png"
 };
 
 var _tutorialPages   = [];
@@ -4251,8 +4251,12 @@ function startMiniGame() {
   updateMiniGameHUD()
   var area = document.getElementById("mg-area");
   if (area) {
-    area.onmousemove = onMgMouseMove;
-    area.onclick     = onMgClick;
+    area.onmousemove  = onMgMouseMove;
+    area.onclick      = onMgClick;
+    area.onmouseleave = function() {
+      var c = document.getElementById("mg-crosshair");
+      if (c) c.style.display = "none";
+    };
   }
 
   spawnMgEnemy();
@@ -4267,13 +4271,15 @@ function startMiniGame() {
 
 function stopMiniGame() {
   mgRunning = false;
-  clearTimeout(mgTimer);
+  clearInterval(mgTimer);
   clearTimeout(mgEnemyTimer);
   if (mgCurrentEnemy && mgCurrentEnemy.parentNode)
     mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
   mgCurrentEnemy = null;
+  var c = document.getElementById("mg-crosshair");
+  if (c) c.style.display = "none";
   var area = document.getElementById("mg-area");
-  if (area) area.onmousemove = area.onclick = null;
+  if (area) area.onmousemove = area.onclick = area.onmouseleave = null;
 }
 
 function spawnMgEnemy() {
@@ -4282,7 +4288,7 @@ function spawnMgEnemy() {
   var maxX = area.clientWidth  - 50;
   var maxY = area.clientHeight - 50;
   var en = document.createElement("img");
-  en.src = "assets/picture/enemy.png";
+  en.src = "assets/picture/小遊戲靶.png";
   en.style.position = "absolute";
   en.style.left = Math.floor(Math.random() * maxX) + "px";
   en.style.top  = Math.floor(Math.random() * maxY) + "px";
@@ -4297,12 +4303,14 @@ function spawnMgEnemy() {
       mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
       mgCurrentEnemy = null;
     }
+    if (mgRunning) spawnMgEnemy();
   }, MG_ENEMY_DURATION);
 }
 
 function onMgMouseMove(e) {
   var crosshair = document.getElementById("mg-crosshair");
   if (!crosshair) return;
+  crosshair.style.display = "block";
   var area = document.getElementById("mg-area");
   var rect = area.getBoundingClientRect();
   crosshair.style.left = (e.clientX - rect.left - crosshair.offsetWidth  / 2) + "px";
