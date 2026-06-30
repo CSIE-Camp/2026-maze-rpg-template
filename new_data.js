@@ -58,26 +58,26 @@ var playerStats = {
 // ── 敵人列表（tier: "A" / "B" / "C" 對應迷宮區域） ──────────
 var enemies = [
   // A 區（Tier 1）
-  { name: "哥布林",   tier: "A", hp: 42,  maxHp: 42,  atk:  9, def: 3, spd:  5, reward: { exp: 11, money: 22 } },
-  { name: "狼人",     tier: "A", hp: 60,  maxHp: 60,  atk: 10, def: 4, spd:  8, reward: { exp: 14, money: 27 } },
-  { name: "泥巴怪",   tier: "A", hp: 56,  maxHp: 56,  atk: 13, def: 5, spd:  4, reward: { exp: 14, money: 28 } },
-  { name: "惡魔蝙蝠", tier: "A", hp: 38,  maxHp: 38,  atk: 12, def: 2, spd: 12, reward: { exp: 13, money: 25 } },
+  { name: "哥布林",   tier: "A", hp: 42,  maxHp: 42,  atk:  9, def: 3, spd:  5, reward: { exp: 11, money: 22 }, img: "assets/picture/哥布林.png" },
+  { name: "狼人",     tier: "A", hp: 60,  maxHp: 60,  atk: 10, def: 4, spd:  8, reward: { exp: 14, money: 27 }, img: "assets/picture/狼人.png" },
+  { name: "泥巴怪",   tier: "A", hp: 56,  maxHp: 56,  atk: 13, def: 5, spd:  4, reward: { exp: 14, money: 28 }, img: "assets/picture/泥巴怪.png" },
+  { name: "惡魔蝙蝠", tier: "A", hp: 38,  maxHp: 38,  atk: 12, def: 2, spd: 12, reward: { exp: 13, money: 25 }, img: "assets/picture/惡魔蝙蝠.png" },
   // B 區（Tier 2）
-  { name: "骷髏騎士",  tier: "B", hp: 250, maxHp: 250, atk: 15, def: 10, spd:  7, reward: { exp: 34, money: 67 } },
-  { name: "Error404★", tier: "B", hp: 10,  maxHp: 10,  atk: 27, def:  0, spd: 15, reward: { exp: 45, money: 90 }, isMiniBarrier: true, noOneShot: true },
-  { name: "史萊姆",    tier: "B", hp: 190, maxHp: 190, atk: 20, def:  8, spd:  5, reward: { exp: 37, money: 73 } },
-  { name: "石像",      tier: "B", hp: 120, maxHp: 120, atk: 17, def:  5, spd:  3, reward: { exp: 39, money: 77 }, isPaired: true },
+  { name: "骷髏騎士",  tier: "B", hp: 250, maxHp: 250, atk: 15, def: 10, spd:  7, reward: { exp: 34, money: 67 }, img: "assets/picture/骷髏騎士.png" },
+  { name: "Error404★", tier: "B", hp: 10,  maxHp: 10,  atk: 27, def:  0, spd: 15, reward: { exp: 45, money: 90 }, isMiniBarrier: true, noOneShot: true, img: "assets/picture/Error404.png" },
+  { name: "史萊姆",    tier: "B", hp: 190, maxHp: 190, atk: 20, def:  8, spd:  5, reward: { exp: 37, money: 73 }, img: "assets/picture/史萊姆.png" },
+  { name: "遠古圖騰",      tier: "B", hp: 120, maxHp: 120, atk: 17, def:  5, spd:  3, reward: { exp: 39, money: 77 }, isPaired: true, img: "assets/picture/遠古圖騰.png" },
   // C 區（Tier 3）
-  { name: "死靈法師",  tier: "C", hp: 420, maxHp: 420, atk: 34, def: 15, spd: 10, reward: { exp: 50, money: 80 } },
-  { name: "眼球怪",    tier: "C", hp: 510, maxHp: 510, atk: 28, def: 18, spd: 13, reward: { exp: 55, money: 94 } },
-  { name: "冥界雙衛",  tier: "C", hp: 200, maxHp: 200, atk: 34, def: 12, spd:  9, reward: { exp: 52, money: 85 }, isPaired: true }
+  { name: "死靈法師",  tier: "C", hp: 420, maxHp: 420, atk: 34, def: 15, spd: 10, reward: { exp: 50, money: 80 }, img: "assets/picture/死靈法師.png" },
+  { name: "眼球怪",    tier: "C", hp: 510, maxHp: 510, atk: 28, def: 18, spd: 13, reward: { exp: 55, money: 94 }, img: "assets/picture/眼球怪.png" },
+  { name: "冥界雙衛",  tier: "C", hp: 200, maxHp: 200, atk: 34, def: 12, spd:  9, reward: { exp: 52, money: 85 }, isPaired: true, img: "assets/picture/冥界雙衛.png" }
 ];
 
 // ── 最終 Boss ─────────────────────────────────────────────────
 // HP 低於 60% 時召喚 1~3 個分身（各 HP 20）
 var finalBoss = {
   name: "黑暗魔王", hp: 1250, maxHp: 1250, atk: 53, def: 20, spd: 18,
-  reward: { exp: 200, money: 150 }
+  reward: { exp: 200, money: 150 }, img: "assets/picture/黑暗巨龍.png"
 };
 
 
@@ -154,17 +154,17 @@ var shopItems = [
 
 // ── 同伴定義（商店招募，最多 2 人） ──────────────────────────
 var allyDefs = [
-  { id: "archer", name: "弓箭手", icon: "🏹",
+  { id: "archer", name: "弓箭手", icon: "🏹", img: "assets/picture/弓箭手.png",
     hp: 80, maxHp: 80, atk: 18, def: 3, spd: 12, price: 1, critChance: 0.5,
     skill: { id: "volley",     name: "箭雨",   icon: "🌧️",
              desc: "攻擊全體敵人各造成 ATK 點傷害（冷卻 3 回合）",
              isAoe: true,  multiplier: 1, cooldown: 2, baseHit: 80 } },
-  { id: "wizard", name: "法師",   icon: "🧙",
+  { id: "wizard", name: "法師",   icon: "🧙", img: "assets/picture/法師.png",
     hp: 55, maxHp: 55, atk: 22, def: 2, spd: 8, price: 100,
     skill: { id: "blizzard",   name: "冰矛",   icon: "❄️",
              desc: "對單體造成 ATK×2 點傷害（冷卻 3 回合）",
              isAoe: false, multiplier: 2, cooldown: 3, baseHit: 85 } },
-  { id: "knight", name: "聖騎士", icon: "⚔️",
+  { id: "knight", name: "聖騎士", icon: "⚔️", img: "assets/picture/聖騎士.png",
     hp: 130, maxHp: 130, atk: 14, def: 26, spd: 10, price: 100,
     skill: { id: "holy_guard", name: "護衛",   icon: "🔰",
              desc: "本回合替玩家承受敵人攻擊（以自身 DEF 減傷，冷卻 3 回合）",
