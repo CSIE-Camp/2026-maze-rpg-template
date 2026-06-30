@@ -5,30 +5,6 @@
 // ============================================================
 
 
-// ── 角色圖片路徑查詢 ─────────────────────────────────────────────
-var _charImageMap = {
-  "哥布林": "assets/picture/哥布林.png",
-  "狼人": "assets/picture/狼人.png",
-  "泥巴怪": "assets/picture/泥巴怪.png",
-  "惡魔蝙蝠": "assets/picture/惡魔蝙蝠.png",
-  "骷髏騎士": "assets/picture/骷髏騎士.png",
-  "Error404★": "assets/picture/Error404.png",
-  "史萊姆": "assets/picture/史萊姆.png",
-  "遠古圖騰": "assets/picture/遠古圖騰.png",
-  "死靈法師": "assets/picture/死靈法師.png",
-  "眼球怪": "assets/picture/眼球怪.png",
-  "冥界雙衛": "assets/picture/冥界雙衛.png",
-  "黑暗巨龍": "assets/picture/黑暗巨龍.png",
-  "魔王小兵": "assets/picture/魔王小兵.png",
-  "弓箭手": "assets/picture/弓箭手.png",
-  "法師": "assets/picture/法師.png",
-  "聖騎士": "assets/picture/聖騎士.png",
-  "勇者": "assets/picture/玩家.png"
-};
-function getCharImage(name) {
-  return _charImageMap[name] || "assets/picture/玩家.png";
-}
-
 // ── 偽隨機數（固定種子） ────────────────────────────────────────
 function makeRng(seed) {
   var s = (seed >>> 0) || 1;
@@ -100,6 +76,23 @@ var enemyBuff = {
   def: { stages: 0, turnsLeft: 0 },
   spd: { stages: 0, turnsLeft: 0 }
 };
+
+// ── Buff/Debuff 統一套用函式 ───────────────────────────────────
+// buffObj : partyBuff 或 enemyBuff
+// stat    : "atk" / "def" / "spd"
+// delta   : +1 提升一段 / -1 降低一段
+// 回傳 { changed, stages, atCap }
+// 規則：達上下限（±3）時不改變 stages 也不重設計時器，但冷卻仍消耗（intentional）。
+//       雙方向套用同一物件：partyBuff 可為負（被 debuff），enemyBuff 可為正（自強化）。
+function _applyBuff(buffObj, stat, delta) {
+  var b = buffObj[stat];
+  var atCap = (delta > 0 && b.stages >= 3) || (delta < 0 && b.stages <= -3);
+  if (!atCap) {
+    b.stages = Math.max(-3, Math.min(3, b.stages + delta));
+    b.turnsLeft = 3;
+  }
+  return { changed: !atCap, stages: b.stages, atCap: atCap };
+}
 var shopPurchaseCounts = {};
 var isPlayerDefending = false;
 var gameOver          = false;
@@ -772,8 +765,9 @@ function decrementSkillCooldowns() {
 function onSkill(skillId) {
   var isAoe  = (skillId === "chain_slash");
   var isHeal = (skillId === "heal_magic");
+  var isBuffDebuff = ["skukaja","tarukaja","rakukaja","tarunda","rakunda","sukunda"].indexOf(skillId) !== -1;
 
-  if (isAoe) { executeCombatRound("skill_" + skillId); return; }
+  if (isAoe || isBuffDebuff) { executeCombatRound("skill_" + skillId); return; }
 
   if (isHeal) {
     var liveAllies = currentAllies.filter(function(a) { return !a.knockedOut; });
@@ -862,11 +856,6 @@ function showEnemyInfo() {
   var content = document.getElementById("inspect-content");
   if (!panel || !content) return;
 
-  if (panel.style.display !== "none" && panel.style.display !== "") {
-    hideEnemyInfo();
-    return;
-  }
-
   var e = currentEnemy;
   var html = "";
 
@@ -892,8 +881,8 @@ function showEnemyInfo() {
     skill("⚔️", "普通攻擊（60% 機率）",
       "標準攻擊，造成 ATK 扣除你的 DEF 的傷害。");
   } else if (e.isFinalBoss) {
-    skill("🔱", "召喚小兵（被動，25% 每回合）",
-      "無小兵時，召喚 1~3 個魔王小兵（HP 20、ATK " + e.atk + "、每個各自攻擊）。");
+    skill("🔱", "召喚分身（被動，25% 每回合）",
+      "無分身時，召喚 1~3 個魔王分身（HP 20、ATK " + e.atk + "、每個各自攻擊）。");
     skill("👁️", "黑暗壓制（被動，25% 每回合）",
       "ATK-5 攻擊，使你的攻擊力接下來 2 回合減半（不與壓制中重疊）。");
     skill("😈", "狂暴（HP < 40% 必定觸發）",
@@ -902,7 +891,7 @@ function showEnemyInfo() {
       "ATK " + e.atk + " 扣除你的 DEF 造成傷害。");
   } else if (e.isClone) {
     skill("⚡", "合體衝擊",
-      "所有小兵同時攻擊，傷害累加（各 ATK " + e.atk + " - DEF）。");
+      "所有分身同時攻擊，傷害累加（各 ATK " + e.atk + " - DEF）。");
   } else {
     skill("⚡", "普通攻擊",
       "ATK " + e.atk + " 扣除你的 DEF 造成傷害（min 1）。");
@@ -1320,14 +1309,14 @@ function renderMap() {
         if (x === player.x && y === player.y) {
           tile.classList.add("tile--player");
           var img = document.createElement("img");
-          img.src = "assets/picture/玩家.png"; img.alt = "玩家"; img.className = "sprite";
+          img.src = "assets/picture/player.png"; img.alt = "玩家"; img.className = "sprite";
           tile.appendChild(img);
         } else {
-          applyTileStyle(tile, currentMap[y][x], x, y);
+          applyTileStyle(tile, currentMap[y][x]);
         }
       } else if (isExplored) {
         tile.classList.add("tile--explored");
-        applyTileStyle(tile, currentMap[y][x], x, y);
+        applyTileStyle(tile, currentMap[y][x]);
       } else {
         tile.classList.add("tile--hidden");
       }
@@ -1351,27 +1340,21 @@ function applyCameraTransform() {
   visionRadius = Math.ceil(half);
 }
 
-function applyTileStyle(tile, tileType, tx, ty) {
+function applyTileStyle(tile, tileType) {
   var sm = {};
   sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
   sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.CHEST]      = { cls: "tile--chest",    src: "assets/picture/寶箱.png",     alt: "寶箱",   emoji: "📦" };
-  sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: "",                           alt: "敵人",   emoji: "👺" };
-  sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/門鎖.png",    alt: "門",     emoji: "🚪" };
-  sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "assets/picture/小遊戲靶.png", alt: "小遊戲", emoji: "🌀" };
-  sm[MAP_TILE.SHOP]       = { cls: "tile--shop",     src: "assets/picture/商店.png",     alt: "商店",   emoji: "🛒" };
-  sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/黑暗巨龍.png", alt: "魔王",   emoji: "👿" };
-  sm[MAP_TILE.PORTAL]     = { cls: "tile--portal",   src: "assets/picture/傳送門.png",   alt: "傳送門", emoji: "⚡" };
+  sm[MAP_TILE.CHEST]      = { cls: "tile--chest",    src: "assets/picture/chest.png",  alt: "寶箱",   emoji: "📦" };
+  sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: "assets/picture/enemy.png",  alt: "敵人",   emoji: "👺" };
+  sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/door.png",   alt: "門",     emoji: "🚪" };
+  sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "",                          alt: "小遊戲", emoji: "🌀" };
+  sm[MAP_TILE.SHOP]       = { cls: "tile--shop",     src: "",                          alt: "商店",   emoji: "🛒" };
+  sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/boss.png",   alt: "魔王",   emoji: "👿" };
+  sm[MAP_TILE.PORTAL]     = { cls: "tile--portal",   src: "",                          alt: "傳送門", emoji: "⚡" };
 
   var info = sm[tileType];
   if (!info) { tile.classList.add("tile--empty"); return; }
   tile.classList.add(info.cls);
-
-  if (tileType === MAP_TILE.ENEMY && tx !== undefined && ty !== undefined) {
-    var ed = _pickEnemy(tx, ty);
-    if (ed) { info = { cls: info.cls, src: getCharImage(ed.name), alt: ed.name, emoji: "👺" }; }
-  }
-
   if (info.src) {
     var img = document.createElement("img");
     img.src = info.src; img.alt = info.alt; img.className = "sprite";
@@ -1539,26 +1522,11 @@ function _pickEnemy(x, y) {
     }
     console.warn("tileEnemyMap 指定的怪物「" + name + "」在 enemies 中找不到，改用隨機。");
   }
-  var zoneLetter;
-  if (x > mazeDivX2) {
-    zoneLetter = "C";
-  } else if (x > mazeDivX1) {
-    zoneLetter = "B";
-  } else {
-    zoneLetter = "A";
-  }
-  var tier = enemies.filter(function(e) { return e.tier === zoneLetter; });
-  if (zoneEnemies[zoneLetter] && zoneEnemies[zoneLetter].length > 0) {
-    var _allowed = zoneEnemies[zoneLetter];
-    var _filtered = [];
-    for (var _fi = 0; _fi < tier.length; _fi++) {
-      if (_allowed.indexOf(tier[_fi].name) !== -1) _filtered.push(tier[_fi]);
-    }
-    if (_filtered.length > 0) tier = _filtered;
-  }
+  var pool = enemies.slice();
+  if (pool.length === 0) return null;
   var _seed = (typeof MAP_SEED !== "undefined") ? MAP_SEED : 0;
   var posRng = makeRng(_seed * 10000 + y * 1000 + x);
-  return tier[Math.floor(posRng() * tier.length)];
+  return pool[Math.floor(posRng() * pool.length)];
 }
 
 function playEncounterTransition(callback) {
@@ -1591,14 +1559,14 @@ function triggerEnemy(x, y) {
   currentEnemy = {
     x: x, y: y,
     name: ed.name, hp: ed.hp, maxHp: ed.maxHp,
-    atk: ed.atk,  def: ed.def, reward: ed.reward,
+    atk: ed.atk,  def: ed.def, spd: ed.spd || 0, reward: ed.reward,
     isMiniBarrier: ed.isMiniBarrier || false
   };
 
   if (ed.isPaired) {
     var companion = {
       name: ed.name, hp: ed.hp, maxHp: ed.maxHp,
-      atk: ed.atk,  def: ed.def, reward: { money: 0 },
+      atk: ed.atk,  def: ed.def, spd: ed.spd || 0, reward: { money: 0 },
       isMiniBarrier: ed.isMiniBarrier || false
     };
     pairedFightEnemy = { x: x, y: y, reward: ed.reward, maxHp: ed.hp, name: ed.name };
@@ -1614,7 +1582,7 @@ function triggerFinalBoss(x, y) {
   currentEnemy = {
     x: x, y: y,
     name: finalBoss.name, hp: finalBoss.hp, maxHp: finalBoss.maxHp,
-    atk: finalBoss.atk,   def: finalBoss.def, reward: finalBoss.reward,
+    atk: finalBoss.atk,   def: finalBoss.def, spd: finalBoss.spd || 0, reward: finalBoss.reward,
     isFinalBoss: true
   };
   playEncounterTransition(function() {
@@ -1641,6 +1609,7 @@ function triggerShop() {
 }
 
 function openShop() {
+  if (!_shopOpen) { _shopOpen = true; _duckOverlay(); }
   var list = document.getElementById("shop-item-list");
   if (!list) return;
   list.innerHTML = "";
@@ -1955,7 +1924,9 @@ function dealDmgToEnemy(target, dmg) {
   if (target.isMiniBarrier) {
     target.hp = Math.max(0, target.hp - 1);
   } else {
-    target.hp = Math.max(0, target.hp - dmg);
+    var newHp = target.hp - dmg;
+    if (target.noOneShot && target.hp > 1) newHp = Math.max(1, newHp);
+    target.hp = Math.max(0, newHp);
   }
   if (dmg > 0) shakeEnemy(target);
 }
@@ -1966,7 +1937,7 @@ function renderEnemyUnits() {
 
   var units = activeClones.length > 0 ? activeClones : (currentEnemy ? [currentEnemy] : []);
   var count = units.length;
-  var size = count === 1 ? 135 : count === 2 ? 110 : count <= 4 ? 90 : 72;
+  var size = count === 1 ? 120 : count === 2 ? 100 : count <= 4 ? 82 : 65;
 
   area.innerHTML = "";
 
@@ -1982,7 +1953,8 @@ function renderEnemyUnits() {
       imgWrap.style.height = size + "px";
 
       var img = document.createElement("img");
-      img.src = getCharImage(unit.name);
+      var isBoss = unit.isFinalBoss || (savedBoss !== null && activeClones.indexOf(unit) !== -1);
+      img.src = isBoss ? "assets/picture/boss.png" : "assets/picture/enemy.png";
       img.className = "battle-sprite enemy-sprite-img";
       img.onerror   = function() { this.style.display = "none"; };
       imgWrap.appendChild(img);
@@ -2009,14 +1981,20 @@ function renderEnemyUnits() {
       hpDiv.appendChild(num);
       div.appendChild(hpDiv);
 
+      var statusDiv = document.createElement("div");
+      statusDiv.className = "enemy-unit-status";
+      statusDiv.setAttribute("data-status-idx", idx);
+      div.appendChild(statusDiv);
+
       area.appendChild(div);
     })(units[i], i);
   }
+  updateEnemyStatusDisplay();
 
   var nameEl = document.getElementById("enemy-name");
   if (nameEl) {
     if (activeClones.length > 0) {
-      nameEl.textContent = (savedBoss ? "魔王小兵" : (currentEnemy ? currentEnemy.name : "")) + " ×" + activeClones.length;
+      nameEl.textContent = (savedBoss ? "魔王分身" : (currentEnemy ? currentEnemy.name : "")) + " ×" + activeClones.length;
     } else if (currentEnemy) {
       nameEl.textContent = currentEnemy.name;
     }
@@ -2060,17 +2038,33 @@ function renderPartyUnits() {
     return div;
   }
 
-  area.appendChild(makeUnit(0, "player", getCharImage(currentPlayer.name), "🧙",
+  area.appendChild(makeUnit(0, "player", "assets/picture/player.png", "🧙",
                              currentPlayer.name, false));
 
   for (var i = 0; i < currentAllies.length; i++) {
     var ally = currentAllies[i];
-    area.appendChild(makeUnit(i + 1, "ally", getCharImage(ally.name),
+    area.appendChild(makeUnit(i + 1, "ally", "assets/picture/player.png",
                               ally.icon || "🧑", ally.name, ally.knockedOut));
   }
 }
 
 function renderAllyUnits() { renderPartyUnits(); }
+
+function updateEnemyStatusDisplay() {
+  var units = activeClones.length > 0 ? activeClones : (currentEnemy ? [currentEnemy] : []);
+  for (var i = 0; i < units.length; i++) {
+    var sdiv = document.querySelector("[data-status-idx='" + i + "'].enemy-unit-status");
+    if (!sdiv) continue;
+    sdiv.innerHTML = "";
+    var effs = _getCharEffects(units[i]);
+    for (var ei = 0; ei < effs.length; ei++) {
+      var chip = document.createElement("span");
+      chip.className = "phc-effect " + effs[ei].cls;
+      chip.textContent = effs[ei].text;
+      sdiv.appendChild(chip);
+    }
+  }
+}
 
 function updateCombatEnemyHp() {
   var units = activeClones.length > 0 ? activeClones : (currentEnemy ? [currentEnemy] : []);
@@ -2137,7 +2131,7 @@ function updateCombatHint() {
     if (currentEnemy.hp < currentEnemy.maxHp * 0.4) {
       hint = "⚠️ 魔王狂暴中！小心必定連擊＋範圍濺射！";
     } else if (currentEnemy.hp < currentEnemy.maxHp * 0.6) {
-      hint = "👁️ 魔王隨時可能召喚小兵或施展壓制！";
+      hint = "👁️ 魔王隨時可能召喚分身或施展壓制！";
     }
   }
   el.textContent = hint;
@@ -2245,7 +2239,7 @@ function executeCombatRound(action) {
     logMessage(result.message);
     updateCombatEnemyHp();
     if (toKill.length > 0) {
-      logMessage("💀 消滅了 " + toKill.length + " 個小兵！");
+      logMessage("💀 消滅了 " + toKill.length + " 個分身！");
       var area = document.getElementById("combat-enemies-area");
       for (var k = 0; k < toKill.length; k++) {
         (function(dead) {
@@ -2298,7 +2292,7 @@ function executeCombatRound(action) {
 
   if ((bossClonePhase.active || activeClones.length > 0) && currentEnemy.hp <= 0) {
     var deadClone = currentEnemy;
-    logMessage("💀 小兵被消滅！");
+    logMessage("💀 分身被消滅！");
 
     // Consume player token now (before death animation)
     if (COMBAT_MODE === "press_turn") {
@@ -2396,7 +2390,7 @@ function startCloneFight(boss, clones) {
   currentEnemy = activeClones[0];
   renderEnemyUnits();
   isPlayerDefending = false;
-  logMessage("💡 小兵登場！使用「連斬」可一次消滅所有小兵！");
+  logMessage("💡 分身登場！使用「連斬」可一次消滅所有分身！");
   _playerSideQueueCursor = 0;
   if (COMBAT_MODE === "press_turn") {
     playerFullTokens  = calcPlayerTokenCount(); playerFlashTokens = 0;
@@ -2442,7 +2436,7 @@ function endBossClonePhase() {
 
   if (COMBAT_MODE === "press_turn") updateTokenDisplay();
   renderEnemyUnits();
-  logMessage("✅ 小兵全數消滅！");
+  logMessage("✅ 分身全數消滅！");
 
   isPlayerDefending = false;
   _playerSideQueueCursor = 0;
@@ -2705,11 +2699,11 @@ function executeAllyAction(ally, action) {
           }
         }
         removeCloneAndCheckPhaseEnd(target);
-        logMessage("💀 小兵被消滅！" + (activeClones.length > 0 ? "剩餘 " + activeClones.length + " 個。" : ""));
+        logMessage("💀 分身被消滅！" + (activeClones.length > 0 ? "剩餘 " + activeClones.length + " 個。" : ""));
         if (activeClones.length > 0) {
           var en = document.getElementById("enemy-name");
           if (en) en.textContent = (bossClonePhase.active || savedBoss)
-            ? ("魔王小兵 ×" + activeClones.length)
+            ? ("魔王分身 ×" + activeClones.length)
             : (currentEnemy.name + " ×" + activeClones.length);
         }
       }
@@ -2765,7 +2759,7 @@ function executeAllyAction(ally, action) {
       if (activeClones.length > 0) {
         var en2 = document.getElementById("enemy-name");
         if (en2) en2.textContent = (bossClonePhase.active || savedBoss)
-          ? ("魔王小兵 ×" + activeClones.length)
+          ? ("魔王分身 ×" + activeClones.length)
           : (currentEnemy.name + " ×" + activeClones.length);
       }
       updateCombatEnemyHp();
@@ -3127,14 +3121,14 @@ function runNextEnemyTurn() {
     return;
   }
 
-  // ── 情況二：Boss 小兵逐一行動 ──
+  // ── 情況二：Boss 分身逐一行動 ──
   if (bossClonePhase.active && activeClones.length > 0) {
     if (COMBAT_MODE === "press_turn" && enemyFullTokens + enemyFlashTokens <= 0) {
       startNewCombatRound();
       return;
     }
 
-    // 找到下一個存活小兵
+    // 找到下一個存活分身
     var actingClone = null;
     for (var ci = 0; ci < activeClones.length; ci++) {
       var cidx = (enemyCloneTurnCursor + ci) % activeClones.length;
@@ -3147,7 +3141,7 @@ function runNextEnemyTurn() {
     if (!actingClone) { endBossClonePhase(); return; }
 
     var res2 = enemyTurn(currentPlayer, actingClone);
-    var cloneLabel = "小兵";
+    var cloneLabel = "分身";
     var dmg2 = res2.playerDamage || 0;
     var shielded2 = isPlayerDefending || allyShieldActive;
     isPlayerDefending = false; allyShieldActive = false;
@@ -3322,7 +3316,7 @@ function startNewCombatRound() {
       var b = partyBuff[stat];
       if (b.turnsLeft > 0) {
         b.turnsLeft--;
-        if (b.turnsLeft <= 0) { var dir = b.stages > 0 ? "提升" : "下降"; b.stages = 0; logMessage("⬇️ " + NAMES[stat] + dir + "效果消失了！"); }
+        if (b.turnsLeft <= 0) { b.stages = 0; b.turnsLeft = 0; }
       }
       var e = enemyBuff[stat];
       if (e.turnsLeft > 0) {
@@ -3331,6 +3325,7 @@ function startNewCombatRound() {
       }
     });
     updatePartyHpArea();
+    updateEnemyStatusDisplay();
   })();
   setCombatButtonsEnabled(true);
 }
@@ -3556,6 +3551,7 @@ function restartGame() {
   playerSkillCooldowns  = {};
   playerAtkDebuffTurns  = 0;
   shopPurchaseCounts    = {};
+  if (_shopOpen) { _shopOpen = false; _unduckOverlay(); }
 
   updateHUD(); renderMap(); showScreen("screen-map");
   updateControlsHint();
@@ -3614,22 +3610,23 @@ function advanceDialogue() {
 //  教學系統
 // ============================================================
 var TUTORIAL_PAGES = [
-  { text: "探索迷宮並打敗最終魔王吧！",                         img: "assets/picture/黑暗巨龍.png" },
-  { text: "擊敗擋路的怪物，順便獲得金幣吧！",                   img: "assets/picture/哥布林.png" },
-  { text: "地圖上偶爾也會散落寶箱\n\n經過商店時順便進去看看吧", img: "assets/picture/寶箱.png" },
-  { text: "透過玩完小遊戲獲得鑰匙以抵達更深處",                  img: "assets/picture/小遊戲靶.png" },
+  { text: "探索迷宮並打敗最終魔王吧！",                         img: "assets/picture/boss.png" },
+  { text: "擊敗擋路的怪物，順便獲得金幣吧！",                   img: "assets/picture/enemy.png" },
+  { text: "地圖上偶爾也會散落寶箱\n\n經過商店時順便進去看看吧", img: "assets/picture/chest.png" },
+  { text: "透過玩完小遊戲獲得鑰匙以抵達更深處",                  img: "assets/picture/minigame.svg" },
   { text: "有時也會出現雙向傳送門\n靠著它去往隱藏地區吧",        img: null }
 ];
 
 var TUTORIAL_SHOP_PAGE = {
   text: "可以透過快捷鍵 F 或點擊\n右側商店按鈕隨時開啟商店！",
-  img: "assets/picture/商店.png"
+  img: "assets/picture/shop.svg"
 };
 
 var _tutorialPages   = [];
 var _tutorialCursor  = 0;
 var _tutorialOnClose = null;
 var _shopTutorialShown = false;
+var _shopOpen          = false;
 
 function showTutorial(pages, onClose) {
   _tutorialPages   = pages;
@@ -3728,8 +3725,11 @@ var _tut = {
 };
 
 // ── 教學頁面定義 ─────────────────────────────────────────
-var TUTORIAL_COMBAT_INTRO = { text: "選擇行動，設法戰勝眼前的敵人吧！", img: null };
-var TUTORIAL_HALF_TOKEN   = { text: "當觸發爆擊時\n可獲得額外一次行動機會！", img: null };
+var TUTORIAL_COMBAT_INTRO = [
+                              {text: "選擇行動，設法戰勝眼前的敵人吧！", img: null},
+                              {text: "每個行動都會黃色的是行動點，\n消耗完畢就是對方回合", img:"./assets/picture/行動點.png"}
+                            ];
+var TUTORIAL_HALF_TOKEN   = { text: "當觸發爆擊時\n可獲得額外一次行動機會！", img:"./assets/picture/額外行動.png" };
 var TUTORIAL_MISS         = { text: "若失手 Miss 了\n將額外喪失一次行動機會！", img: null };
 
 // ── 設定 toggle 更新 UI ───────────────────────────────────
@@ -3773,7 +3773,7 @@ function tryShowCombatIntroTutorial() {
   _tut.combatPending = false;
   if (!_tut.combatEnabled || _tut.combatIntroDone) return;
   _tut.combatIntroDone = true;
-  setTimeout(function() { showTutorial([TUTORIAL_COMBAT_INTRO]); }, 200);
+  setTimeout(function() { showTutorial(TUTORIAL_COMBAT_INTRO); }, 200);
 }
 
 function tryShowHalfTokenTutorial() {
@@ -3790,6 +3790,7 @@ function tryShowMissTutorial() {
 }
 
 function notifyShopClosed() {
+  if (_shopOpen) { _shopOpen = false; _unduckOverlay(); }
   if (!_shopTutorialShown) {
     _shopTutorialShown = true;
     setTimeout(function() {
@@ -3945,14 +3946,62 @@ function playerTurn(action, player, enemy) {
 
   if (action === "skill_skukaja") {
     result.skillUsed = "skukaja";
-    if (partyBuff.spd.stages >= 3) {
-      result.message = "⬆️ 斯庫卡加：效果已達上限！";
-    } else {
-      partyBuff.spd.stages++;
-      partyBuff.spd.turnsLeft = 3;
-      result.message = "⬆️ 斯庫卡加！我方全體速度提升（" + partyBuff.spd.stages + " 段，剩餘 3 回合）";
-    }
+    var _r = _applyBuff(partyBuff, "spd", 1);
+    if (_r.atCap)           result.message = "⬆️ 斯庫卡加：速度已達上限！";
+    else if (_r.stages > 0) result.message = "⬆️ 斯庫卡加！我方全體速度提升（" + _r.stages + " 段，剩餘 3 回合）";
+    else if (_r.stages < 0) result.message = "⬆️ 斯庫卡加！速度下降效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
+    else                    result.message = "⬆️ 斯庫卡加！速度效果相互抵銷！";
     updatePartyHpArea();
+  }
+
+  if (action === "skill_tarukaja") {
+    result.skillUsed = "tarukaja";
+    var _r = _applyBuff(partyBuff, "atk", 1);
+    if (_r.atCap)           result.message = "🗡️ 塔爾卡加：攻擊已達上限！";
+    else if (_r.stages > 0) result.message = "🗡️ 塔爾卡加！我方全體攻擊提升（" + _r.stages + " 段，剩餘 3 回合）";
+    else if (_r.stages < 0) result.message = "🗡️ 塔爾卡加！攻擊下降效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
+    else                    result.message = "🗡️ 塔爾卡加！攻擊效果相互抵銷！";
+    updatePartyHpArea();
+  }
+
+  if (action === "skill_rakukaja") {
+    result.skillUsed = "rakukaja";
+    var _r = _applyBuff(partyBuff, "def", 1);
+    if (_r.atCap)           result.message = "🔰 拉庫卡加：防禦已達上限！";
+    else if (_r.stages > 0) result.message = "🔰 拉庫卡加！我方全體防禦提升（" + _r.stages + " 段，剩餘 3 回合）";
+    else if (_r.stages < 0) result.message = "🔰 拉庫卡加！防禦下降效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
+    else                    result.message = "🔰 拉庫卡加！防禦效果相互抵銷！";
+    updatePartyHpArea();
+  }
+
+  if (action === "skill_tarunda") {
+    result.skillUsed = "tarunda";
+    var _r = _applyBuff(enemyBuff, "atk", -1);
+    if (_r.atCap)           result.message = "💢 塔倫達：敵方攻擊已達下限！";
+    else if (_r.stages < 0) result.message = "💢 塔倫達！敵方全體攻擊下降（" + (-_r.stages) + " 段，剩餘 3 回合）";
+    else if (_r.stages > 0) result.message = "💢 塔倫達！敵方攻擊強化效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
+    else                    result.message = "💢 塔倫達！敵方攻擊效果相互抵銷！";
+    updatePartyHpArea(); updateEnemyStatusDisplay();
+  }
+
+  if (action === "skill_rakunda") {
+    result.skillUsed = "rakunda";
+    var _r = _applyBuff(enemyBuff, "def", -1);
+    if (_r.atCap)           result.message = "🌊 拉坤達：敵方防禦已達下限！";
+    else if (_r.stages < 0) result.message = "🌊 拉坤達！敵方全體防禦下降（" + (-_r.stages) + " 段，剩餘 3 回合）";
+    else if (_r.stages > 0) result.message = "🌊 拉坤達！敵方防禦強化效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
+    else                    result.message = "🌊 拉坤達！敵方防禦效果相互抵銷！";
+    updatePartyHpArea(); updateEnemyStatusDisplay();
+  }
+
+  if (action === "skill_sukunda") {
+    result.skillUsed = "sukunda";
+    var _r = _applyBuff(enemyBuff, "spd", -1);
+    if (_r.atCap)           result.message = "🐌 斯坤達：敵方速度已達下限！";
+    else if (_r.stages < 0) result.message = "🐌 斯坤達！敵方全體速度下降（" + (-_r.stages) + " 段，剩餘 3 回合）";
+    else if (_r.stages > 0) result.message = "🐌 斯坤達！敵方速度強化效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
+    else                    result.message = "🐌 斯坤達！敵方速度效果相互抵銷！";
+    updatePartyHpArea(); updateEnemyStatusDisplay();
   }
 
   if (action === "skill_chain_slash") {
@@ -3987,9 +4036,34 @@ function enemyTurn(player, enemy) {
     message:      ""
   };
 
+  // ── 敵方 Buff / Debuff 技能 ───────────────────────────────────
+  // 在 new_data.js 的 enemies 陣列中為敵人加上 buffSkill 即可啟用：
+  //   buffSkill: { name:"技能名", target:"self"/"party", stat:"atk"/"def"/"spd", delta:1/-1, chance:0.3 }
+  //   target "self"  → 修改 enemyBuff（敵方強化）
+  //   target "party" → 修改 partyBuff（我方弱化）
+  if (enemy.buffSkill) {
+    var _bs = enemy.buffSkill;
+    if (Math.random() < (_bs.chance || 0.3)) {
+      var _bObj  = (_bs.target === "self") ? enemyBuff : partyBuff;
+      var _bRes  = _applyBuff(_bObj, _bs.stat, _bs.delta);
+      var _bStat = { atk: "攻擊", def: "防禦", spd: "速度" }[_bs.stat] || _bs.stat;
+      var _bTgt  = (_bs.target === "self") ? "自身" : "我方全體";
+      if (_bRes.atCap) {
+        result.message = "「" + enemy.name + "」施放了" + _bs.name + "，但效果已達極限！";
+      } else if (_bRes.stages === 0) {
+        result.message = "「" + enemy.name + "」施放了" + _bs.name + "！" + _bTgt + _bStat + "效果相互抵銷！";
+      } else {
+        var _bDir = _bs.delta > 0 ? "提升" : "下降";
+        result.message = "「" + enemy.name + "」施放了" + _bs.name + "！" + _bTgt + _bStat + _bDir + "（" + Math.abs(_bRes.stages) + " 段，剩餘 3 回合）";
+      }
+      updatePartyHpArea(); updateEnemyStatusDisplay();
+      return result;
+    }
+  }
+
   var damage = Math.max(1, getEffectiveAtk(enemy) - getEffectiveDef(player));
 
-  // 先決定是否命中（召喚小兵/特殊技能不受命中率影響）
+  // 先決定是否命中（召喚分身/特殊技能不受命中率影響）
   var enemyWillMiss = !rollHit(enemy, player, BASE_ATTACK_HIT);
 
   if (enemy.isFinalBoss) {
@@ -4000,11 +4074,11 @@ function enemyTurn(player, enemy) {
       var count = Math.floor(Math.random() * 3) + 1;
       var clones = [];
       for (var i = 0; i < count; i++) {
-        clones.push({ name: "魔王小兵", hp: 20, maxHp: 20, atk: 35, def: 0, spd: 8,
+        clones.push({ name: "魔王分身", hp: 20, maxHp: 20, atk: 35, def: 0, spd: 8,
                       reward: { money: 0 }, isClone: true });
       }
       result.summonClones = clones;
-      result.message = "🔱 魔王揮動魔杖，召喚了 " + count + " 個魔王小兵！";
+      result.message = "🔱 魔王揮動魔杖，召喚了 " + count + " 個黑暗分身！";
       return result;
     }
 
@@ -4083,85 +4157,49 @@ function startMiniGame() {
   mgTimeLeft = MG_TIME;
   mgRunning  = true;
 
-  updateMiniGameHUD();
-
-  // 只移除殘留敵人，保留 #mg-crosshair
+  updateMiniGameHUD()
   var area = document.getElementById("mg-area");
   if (area) {
-    var oldEnemies = area.querySelectorAll(".mg-enemy");
-    for (var i = 0; i < oldEnemies.length; i++) area.removeChild(oldEnemies[i]);
-    area.addEventListener("click", onMgClick);
+    area.onmousemove = onMgMouseMove;
+    area.onclick     = onMgClick;
   }
-  mgCurrentEnemy = null;
-
-  // 顯示準心，設定初始位置在中央
-  var crosshair = document.getElementById("mg-crosshair");
-  var mgAreaEl  = document.getElementById("mg-area");
-  if (crosshair && mgAreaEl) {
-    crosshair.style.display = "block";
-    crosshair.style.left = ((mgAreaEl.offsetWidth  || 600) / 2) + "px";
-    crosshair.style.top  = ((mgAreaEl.offsetHeight || 380) / 2) + "px";
-  }
-
-  document.addEventListener("mousemove", onMgMouseMove);
-
-  mgTimer = setInterval(function() {
-    mgTimeLeft--;
-    updateMiniGameHUD();
-    if (mgTimeLeft <= 0) onMiniGameEnd(mgScore >= MG_TARGET);
-  }, 1000);
 
   spawnMgEnemy();
-  mgSpawnTimer = setInterval(function() {
-    if (mgRunning) spawnMgEnemy();
-  }, MG_SPAWN_INTERVAL);
+
+  mgTimer = setInterval(function() {
+    if (!mgRunning) { clearInterval(mgTimer); return; }
+    mgTimeLeft--;
+    updateMiniGameHUD();
+    if (mgTimeLeft <= 0) { onMiniGameEnd(false); }
+  }, 1000);
 }
 
 function stopMiniGame() {
   mgRunning = false;
-  clearInterval(mgTimer);
-  clearInterval(mgSpawnTimer);
+  clearTimeout(mgTimer);
   clearTimeout(mgEnemyTimer);
-
-  document.removeEventListener("mousemove", onMgMouseMove);
-
-  var area = document.getElementById("mg-area");
-  if (area) {
-    area.removeEventListener("click", onMgClick);
-    var oldEnemies = area.querySelectorAll(".mg-enemy");
-    for (var i = 0; i < oldEnemies.length; i++) area.removeChild(oldEnemies[i]);
-  }
+  if (mgCurrentEnemy && mgCurrentEnemy.parentNode)
+    mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
   mgCurrentEnemy = null;
-
-  var crosshair = document.getElementById("mg-crosshair");
-  if (crosshair) crosshair.style.display = "none";
+  var area = document.getElementById("mg-area");
+  if (area) area.onmousemove = area.onclick = null;
 }
 
 function spawnMgEnemy() {
-  if (!mgRunning) return;
-  if (mgCurrentEnemy && mgCurrentEnemy.parentNode) {
-    mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
-  }
-  clearTimeout(mgEnemyTimer);
-
   var area = document.getElementById("mg-area");
   if (!area) return;
-
-  var areaW = area.offsetWidth  || 600;
-  var areaH = area.offsetHeight || 400;
-  var size  = 50;
-
-  var rx = Math.floor(Math.random() * (areaW - size));
-  var ry = Math.floor(Math.random() * (areaH - size));
-
-  var enemyEl       = document.createElement("img");
-  enemyEl.src       = "assets/picture/小遊戲靶.png";
-  enemyEl.className = "mg-enemy";
-  enemyEl.style.left = rx + "px";
-  enemyEl.style.top  = ry + "px";
-
-  area.appendChild(enemyEl);
-  mgCurrentEnemy = enemyEl;
+  var maxX = area.clientWidth  - 50;
+  var maxY = area.clientHeight - 50;
+  var en = document.createElement("img");
+  en.src = "assets/picture/enemy.png";
+  en.style.position = "absolute";
+  en.style.left = Math.floor(Math.random() * maxX) + "px";
+  en.style.top  = Math.floor(Math.random() * maxY) + "px";
+  en.style.width  = "50px";
+  en.style.height = "50px";
+  en.style.cursor = "crosshair";
+  area.appendChild(en);
+  mgCurrentEnemy = en;
 
   mgEnemyTimer = setTimeout(function() {
     if (mgCurrentEnemy && mgCurrentEnemy.parentNode) {
@@ -4205,10 +4243,8 @@ function onMgClick(e) {
 }
 
 function updateMiniGameHUD() {
-  var scoreEl  = document.getElementById("mg-score");
-  var timeEl   = document.getElementById("mg-time");
-  var targetEl = document.getElementById("mg-target");
-  if (scoreEl)  scoreEl.textContent  = mgScore;
-  if (targetEl) targetEl.textContent = MG_TARGET;
-  if (timeEl)   timeEl.textContent   = mgTimeLeft;
+  var scoreEl = document.getElementById("mg-score");
+  var timeEl  = document.getElementById("mg-time");
+  if (scoreEl) scoreEl.textContent = mgScore + " / " + MG_TARGET;
+  if (timeEl)  timeEl.textContent  = mgTimeLeft;
 }
