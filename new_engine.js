@@ -40,17 +40,6 @@ var currentPlayer = {
 
 var currentMap = mapGrid.map(function(row) { return row.slice(); });
 
-var mazeDivX1 = -1, mazeDivX2 = -1;
-var _doorXs = [];
-for (var _dy = 0; _dy < currentMap.length; _dy++) {
-  for (var _dx = 0; _dx < currentMap[_dy].length; _dx++) {
-    if (currentMap[_dy][_dx] === MAP_TILE.DOOR && _doorXs.indexOf(_dx) === -1)
-      _doorXs.push(_dx);
-  }
-}
-_doorXs.sort(function(a, b) { return a - b; });
-if (_doorXs.length >= 1) mazeDivX1 = _doorXs[0];
-if (_doorXs.length >= 2) mazeDivX2 = _doorXs[_doorXs.length - 1];
 
 var visitedTiles      = [];
 var currentEnemy      = null;
