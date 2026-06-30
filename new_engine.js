@@ -14,6 +14,9 @@ function makeRng(seed) {
   };
 }
 
+// 每次開啟遊戲時以當下時間產生不同的隨機種子
+var SESSION_SEED = Date.now() & 0xFFFFFFFF;
+
 
 // ── 全域遊戲狀態 ──────────────────────────────────────────────
 var player = { x: playerStart.x, y: playerStart.y };
@@ -59,27 +62,61 @@ var currentAllies     = [];
 var allyShieldActive  = false;
 var allyDefendList    = [];     // 本回合選擇防禦的同伴
 var knightTauntActive = false;
-var blackKnightExposed = false;
 var pendingSkillId    = null;
 var pendingHealTarget = null;
 var pendingItemIdx    = -1;
-var pendingItemIndex  = null;
 var shopUnlocked      = false;
 // 我方/敵方全體 buff/debuff（-3 ~ +3 段，共享回合數）
 var partyBuff = {
   atk: { stages: 0, turnsLeft: 0 },
   def: { stages: 0, turnsLeft: 0 },
-  spd: { stages: 0, turnsLeft: 0 }
+  hit: { stages: 0, turnsLeft: 0 }
 };
 var enemyBuff = {
   atk: { stages: 0, turnsLeft: 0 },
   def: { stages: 0, turnsLeft: 0 },
-  spd: { stages: 0, turnsLeft: 0 }
+  hit: { stages: 0, turnsLeft: 0 }
 };
+
+// ── 先攻順序 ─────────────────────────────────────────────────
+var _playerGoesFirst = true;   // 當前回合玩家是否先攻
+var _prevPlayerGoesFirst = true;
+
+// 比較雙方最高有效速度，設定 _playerGoesFirst
+// 分身/配對戰鬥固定玩家先攻。同速玩家先攻。
+function _calcRoundOrder() {
+  _prevPlayerGoesFirst = _playerGoesFirst;
+  var partySpdMax = getEffectiveSpd(currentPlayer);
+  if (currentAllies) {
+    for (var _ci = 0; _ci < currentAllies.length; _ci++) {
+      if (currentAllies[_ci].hp > 0)
+        partySpdMax = Math.max(partySpdMax, getEffectiveSpd(currentAllies[_ci]));
+    }
+  }
+  var enemySpdMax = currentEnemy ? getEffectiveSpd(currentEnemy) : 0;
+  // 分身/配對戰：一併比較所有敵方單位速度
+  if (activeClones && activeClones.length > 0) {
+    for (var _ei = 0; _ei < activeClones.length; _ei++) {
+      if (activeClones[_ei].hp > 0)
+        enemySpdMax = Math.max(enemySpdMax, getEffectiveSpd(activeClones[_ei]));
+    }
+  }
+  _playerGoesFirst = (partySpdMax >= enemySpdMax);
+  return { partySpd: partySpdMax, enemySpd: enemySpdMax };
+}
+
+// 玩家回合結束後路由：依先攻方向決定下一步
+function _afterPlayerPhase() {
+  if (_playerGoesFirst) {
+    runEnemyPhase();          // 玩家先攻 → 接著敵人
+  } else {
+    startNewCombatRound();    // 敵人先攻 → 玩家剛行動完，進入新回合
+  }
+}
 
 // ── Buff/Debuff 統一套用函式 ───────────────────────────────────
 // buffObj : partyBuff 或 enemyBuff
-// stat    : "atk" / "def" / "spd"
+// stat    : "atk" / "def" / "hit"
 // delta   : +1 提升一段 / -1 降低一段
 // 回傳 { changed, stages, atCap }
 // 規則：達上下限（±3）時不改變 stages 也不重設計時器，但冷卻仍消耗（intentional）。
@@ -96,6 +133,7 @@ function _applyBuff(buffObj, stat, delta) {
 var shopPurchaseCounts = {};
 var isPlayerDefending = false;
 var gameOver          = false;
+var _firedDialogueTriggers = {};  // 記錄已觸發過的 dialogueTriggers id
 
 var _playerSideQueueCursor = 0;
 var playerFullTokens  = 0;
@@ -118,7 +156,6 @@ var dialogueCallback = null;
 var mgScore        = 0;
 var mgTimeLeft     = MG_TIME;
 var mgTimer        = null;
-var mgSpawnTimer   = null;
 var mgCurrentEnemy = null;
 var mgEnemyTimer   = null;
 var mgRunning      = false;
@@ -156,8 +193,7 @@ function _unduckOverlay() { if (typeof AudioSystem !== "undefined") AudioSystem.
 function getEffectiveSpd(char) {
   var base = char.spd || 0;
   var isPartyMember = (char === currentPlayer || currentAllies.indexOf(char) !== -1);
-  if (isPartyMember) base += partyBuff.spd.stages * SPD_STAGE_BONUS;
-  else base += enemyBuff.spd.stages * SPD_STAGE_BONUS;
+  // 速度不再受 buff 段數影響（命中率由 hit 段數調整）
   return base;
 }
 
@@ -177,7 +213,13 @@ function getEffectiveDef(char) {
 function calcHitRate(attacker, defender, baseHit) {
   var atkSpd = getEffectiveSpd(attacker);
   var defSpd = getEffectiveSpd(defender);
-  var rate = baseHit + (atkSpd - defSpd) / SPD_HIT_SCALE;
+  var isPartyAtk = (attacker === currentPlayer || (currentAllies && currentAllies.indexOf(attacker) !== -1));
+  var atkAgiStages = (isPartyAtk ? partyBuff : enemyBuff).hit.stages;
+  var defAgiStages = (isPartyAtk ? enemyBuff : partyBuff).hit.stages;
+  // 閃避常數：防禦方每段 Agi 等效額外速度，使其更難被命中
+  var dodgeBonus = defAgiStages * AGI_SPD_BONUS;
+  var rate = baseHit + (atkSpd - defSpd - dodgeBonus) / SPD_HIT_SCALE;
+  rate += atkAgiStages * HIT_STAGE_BONUS;
   return Math.max(30, Math.min(95, rate));
 }
 function rollHit(attacker, defender, baseHit) {
@@ -718,8 +760,7 @@ function computeAllySkillDesc(skill, atk) {
   if (skill.isAoe && skill.multiplier) {
     var dmg = Math.max(1, Math.floor(a * skill.multiplier));
     return "攻擊全體敵人各造成 " + dmg + " 傷害（ATK×" + skill.multiplier + "，" + cd + "）";
-  }
-  if (skill.multiplier && !skill.isTaunt && !skill.isShield) {
+  } else if (skill.multiplier && !skill.isTaunt && !skill.isShield) {
     var dmg = Math.max(1, Math.floor(a * skill.multiplier));
     return "對單體造成 " + dmg + " 傷害（ATK×" + skill.multiplier + "，" + cd + "）";
   }
@@ -1075,7 +1116,7 @@ function applyItemToTarget(idx, target) {
   if (COMBAT_MODE === "press_turn") {
     animatePlayerTokenConsume(false, false);
   }
-  setTimeout(function() { processAllyTurns(runEnemyPhase); }, 600);
+  setTimeout(function() { processAllyTurns(_afterPlayerPhase); }, 600);
 }
 
 function craftSkill(skillId) {
@@ -1446,14 +1487,48 @@ document.addEventListener("keydown", function(e) {
     updatePlayerKeys(-1);
     currentMap[newY][newX] = MAP_TILE.EMPTY;
     playSound("unlock_door"); showMapMessage("你用鑰匙打開了門！剩餘鑰匙：" + currentPlayer.keys);
+    // 開門觸發對話
+    if (typeof dialogueTriggers !== "undefined") {
+      for (var _di = 0; _di < dialogueTriggers.length; _di++) {
+        var _dt = dialogueTriggers[_di];
+        if (_dt.doorX !== undefined &&
+            _dt.doorX === newX && _dt.doorY === newY &&
+            !_firedDialogueTriggers[_dt.id]) {
+          _firedDialogueTriggers[_dt.id] = true;
+          showDialogue(_dt.lines);
+          break;
+        }
+      }
+    }
   }
 
   player.x = newX; player.y = newY;
   renderMap();
   checkTileEvent(newX, newY);
+  checkDialogueTriggers(newX, newY);
 });
 
 // ── 格子事件 ──────────────────────────────────────────────────
+function checkDialogueTriggers(x, y) {
+  if (typeof dialogueTriggers === "undefined") return;
+  for (var i = 0; i < dialogueTriggers.length; i++) {
+    var t = dialogueTriggers[i];
+    if (_firedDialogueTriggers[t.id]) continue;
+    if (t.doorX !== undefined) continue;  // 開門觸發由另一段處理
+    var match = false;
+    if (t.x !== undefined) {
+      match = (x === t.x && y === t.y);
+    } else if (t.xMin !== undefined) {
+      match = (x >= t.xMin && x <= t.xMax && y >= t.yMin && y <= t.yMax);
+    }
+    if (match) {
+      _firedDialogueTriggers[t.id] = true;
+      showDialogue(t.lines);
+      return;
+    }
+  }
+}
+
 function checkTileEvent(x, y) {
   var t = currentMap[y][x];
   if      (t === MAP_TILE.CHEST)      triggerChest(x, y);
@@ -1524,8 +1599,7 @@ function _pickEnemy(x, y) {
   }
   var pool = enemies.slice();
   if (pool.length === 0) return null;
-  var _seed = (typeof MAP_SEED !== "undefined") ? MAP_SEED : 0;
-  var posRng = makeRng(_seed * 10000 + y * 1000 + x);
+  var posRng = makeRng(SESSION_SEED + y * 1000 + x);
   return pool[Math.floor(posRng() * pool.length)];
 }
 
@@ -1789,9 +1863,6 @@ function getScaledPrice(item) {
 }
 
 function buyShopItem(item) {
-  if (isStatCapped(item)) {
-    //showShopMessage("❌ 已達上限，無法繼續升級！"); return;
-  }
   var price = getScaledPrice(item);
   if (currentPlayer.money < price) {
     showShopMessage("金幣不足！需要 " + price + " 金幣。"); return;
@@ -1910,13 +1981,20 @@ function startCombat() {
   updateCombatHint();
   playSound("encounter");
   showScreen("screen-combat");
-  _playerSideQueueCursor = 0;
-  if (COMBAT_MODE === "press_turn") {
-    playerFullTokens  = calcPlayerTokenCount(); playerFlashTokens = 0;
-    enemyFullTokens   = calcEnemyTokenCount();  enemyFlashTokens  = 0;
-    updateTokenDisplay();
+  var _order = _calcRoundOrder();
+  if (_order.partySpd > _order.enemySpd) {
+    logMessage("⚡ 我方速度較快（" + _order.partySpd + " vs " + _order.enemySpd + "），玩家先攻！");
+  } else if (_order.enemySpd > _order.partySpd) {
+    logMessage("⚡ 敵方速度較快（" + _order.enemySpd + " vs " + _order.partySpd + "），敵人先攻！");
+  } else {
+    logMessage("⚡ 雙方速度相同（" + _order.partySpd + "），玩家先攻！");
   }
-  processAllyTurns(runEnemyPhase);
+  _playerSideQueueCursor = 0;
+  if (_playerGoesFirst) {
+    processAllyTurns(_afterPlayerPhase);
+  } else {
+    runEnemyPhase();
+  }
   tryShowCombatIntroTutorial();
 }
 
@@ -2048,7 +2126,6 @@ function renderPartyUnits() {
   }
 }
 
-function renderAllyUnits() { renderPartyUnits(); }
 
 function updateEnemyStatusDisplay() {
   var units = activeClones.length > 0 ? activeClones : (currentEnemy ? [currentEnemy] : []);
@@ -2179,7 +2256,7 @@ function executeCombatRound(action) {
       logMessage("⏸️ 「" + currentPlayer.name + "」待機（◈ 消耗）");
       animatePlayerTokenPass(true);
     }
-    setTimeout(function() { processAllyTurns(runEnemyPhase); }, 400);
+    setTimeout(function() { processAllyTurns(_afterPlayerPhase); }, 400);
     return;
   }
 
@@ -2201,11 +2278,10 @@ function executeCombatRound(action) {
       if (!result.playerDefense) animatePlayerTokenMiss();
       else animatePlayerTokenConsume(false, false);
     }
-    setTimeout(function() { processAllyTurns(runEnemyPhase); }, 600);
+    setTimeout(function() { processAllyTurns(_afterPlayerPhase); }, 600);
     return;
   }
 
-  blackKnightExposed = false;
   if (result.healedAlly) updateAllyHpArea();
 
   if (result.playerFlee) {
@@ -2274,10 +2350,10 @@ function executeCombatRound(action) {
           currentEnemy = activeClones[0];
           logMessage("剩餘 " + activeClones.length + " 個。");
           renderEnemyUnits();
-          processAllyTurns(runEnemyPhase);
+          processAllyTurns(_afterPlayerPhase);
         }
       } else {
-        processAllyTurns(runEnemyPhase);
+        processAllyTurns(_afterPlayerPhase);
       }
     }, 620);
     return;
@@ -2306,16 +2382,16 @@ function executeCombatRound(action) {
         removeCloneAndCheckPhaseEnd(deadClone);
         // If clones remain, endBossClonePhase was NOT called → continue the turn flow
         if (activeClones.length > 0) {
-          setTimeout(function() { processAllyTurns(runEnemyPhase); }, 400);
+          setTimeout(function() { processAllyTurns(_afterPlayerPhase); }, 400);
         }
         // If activeClones.length === 0, endBossClonePhase handled it (buttons re-enabled)
       } else if (pairedFightEnemy) {
         var pidx = activeClones.indexOf(deadClone);
         if (pidx !== -1) activeClones.splice(pidx, 1);
         if (activeClones.length === 0) { endPairedFight(); }
-        else { setTimeout(function() { processAllyTurns(runEnemyPhase); }, 400); }
+        else { setTimeout(function() { processAllyTurns(_afterPlayerPhase); }, 400); }
       } else {
-        setTimeout(function() { processAllyTurns(runEnemyPhase); }, 400);
+        setTimeout(function() { processAllyTurns(_afterPlayerPhase); }, 400);
       }
     });
     return;
@@ -2332,11 +2408,11 @@ function executeCombatRound(action) {
     if      (result.bonusTurn && playerFullTokens > 0) logMessage("★ 圖示轉為閃爍，獲得額外行動！");
     else if (result.loseTurn)  logMessage("⚠ 攻擊被閃開！額外失去一個圖示！");
     animatePlayerTokenConsume(result.bonusTurn, result.loseTurn);
-    setTimeout(function() { processAllyTurns(runEnemyPhase); }, 600);
+    setTimeout(function() { processAllyTurns(_afterPlayerPhase); }, 600);
     return;
   }
 
-  setTimeout(function() { processAllyTurns(runEnemyPhase); }, 600);
+  setTimeout(function() { processAllyTurns(_afterPlayerPhase); }, 600);
 }
 
 function runEnemyPhase() {
@@ -2397,7 +2473,7 @@ function startCloneFight(boss, clones) {
     enemyFullTokens   = calcEnemyTokenCount();  enemyFlashTokens  = 0;
     updateTokenDisplay();
   }
-  processAllyTurns(runEnemyPhase);
+  processAllyTurns(_afterPlayerPhase);
 }
 
 function removeCloneAndCheckPhaseEnd(clone) {
@@ -2447,11 +2523,6 @@ function endBossClonePhase() {
     updateTokenDisplay();
   }
   setCombatButtonsEnabled(true);
-}
-
-function resumeBossFight() {
-  // Legacy alias — redirects to endBossClonePhase
-  endBossClonePhase();
 }
 
 function endPairedFight() {
@@ -2810,11 +2881,11 @@ function _getCharEffects(char) {
   }
   _addBuff("atk", "phc-effect--atk", "ATK");
   _addBuff("def", "phc-effect--def", "DEF");
-  _addBuff("spd", "phc-effect--spd", "SPD");
+  _addBuff("hit", "phc-effect--spd", "Agi");
   // 道具臨時加成（不計入段數）
   if ((char.tempAtk || 0) > 0) effects.push({ cls: "phc-effect--atk-up", text: "ATK+ (∞)" });
   if ((char.tempDef || 0) > 0) effects.push({ cls: "phc-effect--def-up", text: "DEF+ (∞)" });
-  if (char === currentPlayer && typeof playerAtkDebuffTurns !== "undefined" && playerAtkDebuffTurns > 0)
+  if (char === currentPlayer && playerAtkDebuffTurns > 0)
     effects.push({ cls: "phc-effect--atk-dn", text: "ATK▼ ("+playerAtkDebuffTurns+")" });
 
   return effects;
@@ -3042,21 +3113,29 @@ function dismissAlly(allyId) {
 }
 
 // ─────────────────────────────────────────────────────────────
-function runNextEnemyTurn() {
-  function _seq(applyFn, continueFn) {
-    setTimeout(function() {
-      applyFn();
-      setTimeout(continueFn, 420);
-    }, 480);
-  }
+function _seq(applyFn, continueFn) {
+  setTimeout(function() {
+    applyFn();
+    setTimeout(continueFn, 420);
+  }, 480);
+}
 
+function runNextEnemyTurn() {
   function _afterEnemyAction() {
     if (COMBAT_MODE === "press_turn") {
       if (enemyFullTokens + enemyFlashTokens > 0) {
         setTimeout(function() { runNextEnemyTurn(); }, 400);
         return;
       }
-      startNewCombatRound();
+      // 敵方 tokens 耗盡
+      if (_playerGoesFirst) {
+        // 玩家先攻 → 敵人行動完畢 → 回合結束
+        startNewCombatRound();
+      } else {
+        // 敵人先攻 → 現在換玩家行動
+        _playerSideQueueCursor = 0;
+        processAllyTurns(startNewCombatRound);
+      }
     } else {
       decrementSkillCooldowns();
       if (playerAtkDebuffTurns > 0) playerAtkDebuffTurns--;
@@ -3312,7 +3391,7 @@ function startNewCombatRound() {
   // 倒數所有 buff/debuff
   (function() {
     var NAMES = { atk: "攻擊", def: "防禦", spd: "速度" };
-    ["atk","def","spd"].forEach(function(stat) {
+    ["atk","def","hit"].forEach(function(stat) {
       var b = partyBuff[stat];
       if (b.turnsLeft > 0) {
         b.turnsLeft--;
@@ -3327,7 +3406,20 @@ function startNewCombatRound() {
     updatePartyHpArea();
     updateEnemyStatusDisplay();
   })();
-  setCombatButtonsEnabled(true);
+  _calcRoundOrder();
+  if (_playerGoesFirst !== _prevPlayerGoesFirst) {
+    if (_playerGoesFirst) {
+      logMessage("🔄 我方速度取得優勢，玩家先攻！");
+    } else {
+      logMessage("🔄 敵方速度取得優勢，敵人先攻！");
+    }
+  }
+  if (_playerGoesFirst) {
+    setCombatButtonsEnabled(true);   // 玩家先攻：開放玩家行動
+  } else {
+    // 敵人先攻：直接進入敵方回合，玩家的 tokens 已在上方設好
+    setTimeout(function() { runEnemyPhase(); }, 200);
+  }
 }
 
 
@@ -3491,8 +3583,8 @@ function fadeToMap(onDone) {
 
 
 function endCombat(won) {
-  partyBuff = { atk:{stages:0,turnsLeft:0}, def:{stages:0,turnsLeft:0}, spd:{stages:0,turnsLeft:0} };
-  enemyBuff  = { atk:{stages:0,turnsLeft:0}, def:{stages:0,turnsLeft:0}, spd:{stages:0,turnsLeft:0} };
+  partyBuff = { atk:{stages:0,turnsLeft:0}, def:{stages:0,turnsLeft:0}, hit:{stages:0,turnsLeft:0} };
+  enemyBuff  = { atk:{stages:0,turnsLeft:0}, def:{stages:0,turnsLeft:0}, hit:{stages:0,turnsLeft:0} };
   if (!_tut.combatDone) {
     _tut.combatDone = true;
     _tut.combatEnabled = false;
@@ -3542,7 +3634,6 @@ function restartGame() {
   currentAllies         = [];
   allyShieldActive      = false;
   knightTauntActive     = false;
-  blackKnightExposed    = false;
   pendingSkillId        = null;
   pendingHealTarget     = null;
   pendingItemIdx        = -1;
@@ -3784,7 +3875,7 @@ function tryShowHalfTokenTutorial() {
 
 function tryShowMissTutorial() {
   if (!_tut.combatEnabled || _tut.missDone) return;
-  if (currentAllies.filter(function(a){ return !a.isDead; }).length === 0) return; // 隊伍 <2
+  if (currentAllies.filter(function(a){ return !a.knockedOut; }).length === 0) return; // 隊伍 <2
   _tut.missDone = true;
   showTutorial([TUTORIAL_MISS]);
 }
@@ -3836,7 +3927,7 @@ function playerTurn(action, player, enemy) {
   };
 
   var effectiveAtk = getEffectiveAtk(player);
-  if (typeof playerAtkDebuffTurns !== "undefined" && playerAtkDebuffTurns > 0) {
+  if (playerAtkDebuffTurns > 0) {
     effectiveAtk = Math.floor(effectiveAtk / 2);
     result.message += "[壓制中] ";
   }
@@ -3946,11 +4037,11 @@ function playerTurn(action, player, enemy) {
 
   if (action === "skill_skukaja") {
     result.skillUsed = "skukaja";
-    var _r = _applyBuff(partyBuff, "spd", 1);
-    if (_r.atCap)           result.message = "⬆️ 斯庫卡加：速度已達上限！";
-    else if (_r.stages > 0) result.message = "⬆️ 斯庫卡加！我方全體速度提升（" + _r.stages + " 段，剩餘 3 回合）";
-    else if (_r.stages < 0) result.message = "⬆️ 斯庫卡加！速度下降效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
-    else                    result.message = "⬆️ 斯庫卡加！速度效果相互抵銷！";
+    var _r = _applyBuff(partyBuff, "hit", 1);
+    if (_r.atCap)           result.message = "⬆️ 斯庫卡加：命中率已達上限！";
+    else if (_r.stages > 0) result.message = "⬆️ 斯庫卡加！我方全體命中率提升（" + _r.stages + " 段，+" + (_r.stages * HIT_STAGE_BONUS) + "%，剩餘 3 回合）";
+    else if (_r.stages < 0) result.message = "⬆️ 斯庫卡加！命中率下降效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
+    else                    result.message = "⬆️ 斯庫卡加！命中率效果相互抵銷！";
     updatePartyHpArea();
   }
 
@@ -3996,11 +4087,11 @@ function playerTurn(action, player, enemy) {
 
   if (action === "skill_sukunda") {
     result.skillUsed = "sukunda";
-    var _r = _applyBuff(enemyBuff, "spd", -1);
-    if (_r.atCap)           result.message = "🐌 斯坤達：敵方速度已達下限！";
-    else if (_r.stages < 0) result.message = "🐌 斯坤達！敵方全體速度下降（" + (-_r.stages) + " 段，剩餘 3 回合）";
-    else if (_r.stages > 0) result.message = "🐌 斯坤達！敵方速度強化效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
-    else                    result.message = "🐌 斯坤達！敵方速度效果相互抵銷！";
+    var _r = _applyBuff(enemyBuff, "hit", -1);
+    if (_r.atCap)           result.message = "🐌 斯坤達：敵方命中率已達下限！";
+    else if (_r.stages < 0) result.message = "🐌 斯坤達！敵方全體命中率下降（" + (-_r.stages) + " 段，-" + (-_r.stages * HIT_STAGE_BONUS) + "%，剩餘 3 回合）";
+    else if (_r.stages > 0) result.message = "🐌 斯坤達！敵方命中率強化效果減弱（" + _r.stages + " 段，剩餘 3 回合）";
+    else                    result.message = "🐌 斯坤達！敵方命中率效果相互抵銷！";
     updatePartyHpArea(); updateEnemyStatusDisplay();
   }
 
@@ -4038,7 +4129,7 @@ function enemyTurn(player, enemy) {
 
   // ── 敵方 Buff / Debuff 技能 ───────────────────────────────────
   // 在 new_data.js 的 enemies 陣列中為敵人加上 buffSkill 即可啟用：
-  //   buffSkill: { name:"技能名", target:"self"/"party", stat:"atk"/"def"/"spd", delta:1/-1, chance:0.3 }
+  //   buffSkill: { name:"技能名", target:"self"/"party", stat:"atk"/"def"/"hit", delta:1/-1, chance:0.3 }
   //   target "self"  → 修改 enemyBuff（敵方強化）
   //   target "party" → 修改 partyBuff（我方弱化）
   if (enemy.buffSkill) {
@@ -4067,8 +4158,8 @@ function enemyTurn(player, enemy) {
   var enemyWillMiss = !rollHit(enemy, player, BASE_ATTACK_HIT);
 
   if (enemy.isFinalBoss) {
-    var hasClones = typeof activeClones !== "undefined" && activeClones.length > 0;
-    var hasDebuff = typeof playerAtkDebuffTurns !== "undefined" && playerAtkDebuffTurns > 0;
+    var hasClones = activeClones.length > 0;
+    var hasDebuff = playerAtkDebuffTurns > 0;
 
     if (!hasClones && Math.random() < 0.25) {
       var count = Math.floor(Math.random() * 3) + 1;
