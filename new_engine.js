@@ -1561,6 +1561,7 @@ document.addEventListener("keydown", function(e) {
   renderMap();
   checkTileEvent(newX, newY);
   checkDialogueTriggers(newX, newY);
+  if (typeof checkGameEndings === "function") checkGameEndings();
 });
 
 // ── 格子事件 ──────────────────────────────────────────────────
@@ -3694,6 +3695,8 @@ function triggerGameOver()  { gameOver = true; showScreen("screen-gameover"); }
 function triggerGameClear() { gameOver = true; showScreen("screen-clear"); }
 
 function restartGame() {
+  // 關閉結局面板
+  if (typeof _closeEndingPanel === "function") _closeEndingPanel();
   // 重置教學狀態（保留開關設定）
   if (_tut.mazeEnabled)   { _tut.mazeDone = false; }
   if (_tut.combatEnabled) { _tut.combatIntroDone = false; _tut.halfTokenDone = false; _tut.missDone = false; _tut.combatDone = false; }

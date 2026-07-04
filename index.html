@@ -345,6 +345,7 @@
       <div id="dev-tab-bar">
         <button id="dev-tab-btn-events" class="dev-tab-btn dev-tab-btn--active" onclick="switchDevTab('events')">🛠 事件程式碼</button>
         <button id="dev-tab-btn-map" class="dev-tab-btn" onclick="switchDevTab('map')">🗺️ 地圖編輯</button>
+        <button id="dev-tab-btn-endings" class="dev-tab-btn" onclick="switchDevTab('endings')">🏁 結局編輯</button>
         <button class="btn btn-minimap-close" id="dev-panel-close-btn" onclick="closeDevPanel()">✕ 關閉</button>
       </div>
 
@@ -423,6 +424,23 @@
 
       </div>
 
+      <!-- ── 分頁三：結局編輯 ── -->
+      <div id="dev-tab-endings" class="dev-tab-page" style="display:none">
+        <div id="dev-endings-left">
+          <div class="dev-panel-title">🏁 結局編輯</div>
+          <div class="dev-panel-hint">設定不同結局的觸發條件與顯示內容。條件為 JS 表達式，每次移動後檢查，第一個符合的結局會觸發。</div>
+          <div id="dev-endings-list"></div>
+          <button class="btn btn-dev-apply" onclick="addGameEnding()">＋ 新增結局</button>
+        </div>
+        <div id="dev-endings-right">
+          <div class="dev-panel-subtitle">
+            匯出結局程式碼
+            <button class="btn btn-dev-copy" onclick="copyEndingsExportCode()">📋 複製</button>
+          </div>
+          <textarea id="dev-endings-export-code" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
       <!-- ── 分頁二：地圖編輯 ── -->
       <div id="dev-tab-map" class="dev-tab-page" style="display:none">
 
@@ -461,6 +479,14 @@
     <div id="event-panel-card">
       <button id="event-panel-close" onclick="game.panel = ''">✕</button>
       <div id="event-panel-content"></div>
+    </div>
+  </div>
+
+  <!-- 自訂結局全屏面板 -->
+  <div id="ending-panel" style="display:none">
+    <div id="ending-panel-box">
+      <div id="ending-panel-content"></div>
+      <button class="btn btn-restart" onclick="restartGame()">🔄 再來一次</button>
     </div>
   </div>
 

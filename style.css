@@ -1883,6 +1883,45 @@ body {
 }
 #event-panel-content button:hover { background: #2a4880; }
 
+/* ── 結局全屏面板 ─────────────────────────────────────────────── */
+#ending-panel {
+  position: fixed; inset: 0; z-index: 2000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+}
+#ending-panel-box {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 24px; text-align: center;
+  padding: 48px 40px;
+  max-width: 600px; max-height: 80vh; overflow-y: auto;
+  color: #d8e8ff;
+}
+#ending-panel-content h1, #ending-panel-content h2, #ending-panel-content h3 {
+  color: #c8d8f8; margin-bottom: 10px;
+}
+#ending-panel-content p { margin-bottom: 10px; line-height: 1.6; font-size: 18px; color: #b0b0b0; }
+
+/* ── 結局編輯分頁 ─────────────────────────────────────────────── */
+#dev-tab-endings { gap: 20px; }
+#dev-endings-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+#dev-endings-right { width: 340px; display: flex; flex-direction: column; gap: 6px; }
+.dev-ending-card {
+  background: #0c1628; border: 1px solid #1e3560; border-radius: 8px;
+  padding: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.dev-ending-card label { color: #8a9ab0; font-size: 12px; }
+.dev-ending-card input, .dev-ending-card textarea {
+  background: #0a1020; color: #c8d8f8; border: 1px solid #1e3560;
+  border-radius: 6px; padding: 6px 8px; font-size: 13px;
+  font-family: "Consolas", "Menlo", monospace; outline: none;
+}
+.dev-ending-card textarea { min-height: 60px; resize: vertical; }
+.dev-ending-header { display: flex; align-items: center; justify-content: space-between; }
+.dev-ending-header span { color: #c8d8f8; font-weight: bold; font-size: 14px; }
+.dev-ending-remove {
+  background: none; border: none; color: #f06060; cursor: pointer; font-size: 14px;
+}
+
 /* ── 開發模式額外樣式（返回與清除暫存、無效掛接） ──────────────── */
 .btn-dev-revert {
   background: #e65100;

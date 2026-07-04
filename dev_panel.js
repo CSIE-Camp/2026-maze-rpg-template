@@ -11,9 +11,10 @@
 //    直接在網頁上點格子畫地圖，可套用到遊戲中並匯出 map.js 程式碼。
 // ============================================================
 
-var DEV_STORE_CODE   = "hackathon_dev_code";
-var DEV_STORE_EVENTS = "hackathon_dev_events";
-var DEV_STORE_MAP    = "hackathon_dev_map";
+var DEV_STORE_CODE    = "hackathon_dev_code";
+var DEV_STORE_EVENTS  = "hackathon_dev_events";
+var DEV_STORE_MAP     = "hackathon_dev_map";
+var DEV_STORE_ENDINGS = "hackathon_dev_endings";
 
 // 事件地塊的預設外觀（圖示為 assets/picture/ 路徑，空字串代表無圖示）
 var DEV_EVENT_DEFAULT_ICON  = "";
@@ -41,6 +42,11 @@ var lastAppliedCode = null;
 // （存名字字串而非函式參照，重新套用程式碼後自動綁到新版函式）
 if (typeof tileEvents === "undefined") {
   var tileEvents = {};
+}
+
+// 結局表：[{ name: "結局名稱", condition: "JS 表達式", html: "HTML 內容" }, ...]
+if (typeof gameEndings === "undefined") {
+  var gameEndings = [];
 }
 
 var DEV_DEFAULT_CODE =
@@ -129,7 +135,7 @@ function isDevPanelOpen() {
 
 // ── 分頁切換 ──────────────────────────────────────────────────
 function switchDevTab(name) {
-  var tabs = ["events", "map"];
+  var tabs = ["events", "map", "endings"];
   for (var i = 0; i < tabs.length; i++) {
     var page = document.getElementById("dev-tab-" + tabs[i]);
     var btn  = document.getElementById("dev-tab-btn-" + tabs[i]);
@@ -138,6 +144,7 @@ function switchDevTab(name) {
     if (btn)  btn.className = "dev-tab-btn" + (active ? " dev-tab-btn--active" : "");
   }
   if (name === "map") { _renderDevMapGrid(); _renderMapExport(); }
+  if (name === "endings") { _renderEndingsList(); _renderEndingsExport(); }
 }
 
 // ── 輔助生命週期與 QoL 函式 ────────────────────────────────────
@@ -203,7 +210,9 @@ function clearDevState() {
   try {
     localStorage.removeItem(DEV_STORE_CODE);
     localStorage.removeItem(DEV_STORE_EVENTS);
+    localStorage.removeItem(DEV_STORE_ENDINGS);
   } catch (e) {}
+  gameEndings = [];
 
   var editor = document.getElementById("dev-code-editor");
   if (editor) editor.value = DEV_DEFAULT_CODE;
@@ -729,6 +738,156 @@ function copyMapExportCode() {
   _setDevMapStatus("✅ 已複製地圖程式碼", false);
 }
 
+// ── 結局系統 ──────────────────────────────────────────────────
+
+function checkGameEndings() {
+  if (gameOver) return;
+  for (var i = 0; i < gameEndings.length; i++) {
+    var ending = gameEndings[i];
+    if (!ending.condition) continue;
+    try {
+      var result = (0, eval)(ending.condition);
+      if (result) {
+        triggerCustomEnding(ending);
+        return;
+      }
+    } catch (e) {}
+  }
+}
+
+function triggerCustomEnding(ending) {
+  gameOver = true;
+  var panel   = document.getElementById("ending-panel");
+  var content = document.getElementById("ending-panel-content");
+  if (!panel || !content) return;
+  content.innerHTML = ending.html || "<h1>" + (ending.name || "結局") + "</h1>";
+  panel.style.display = "flex";
+}
+
+function _closeEndingPanel() {
+  var panel = document.getElementById("ending-panel");
+  if (panel) panel.style.display = "none";
+}
+
+function addGameEnding() {
+  gameEndings.push({ name: "結局 " + (gameEndings.length + 1), condition: "", html: "<h1>🏁 結局</h1>\n<p>遊戲結束了。</p>" });
+  _renderEndingsList();
+  _renderEndingsExport();
+  _saveDevEndings();
+}
+
+function removeGameEnding(index) {
+  gameEndings.splice(index, 1);
+  _renderEndingsList();
+  _renderEndingsExport();
+  _saveDevEndings();
+}
+
+function _updateEndingField(index, field, value) {
+  if (index < 0 || index >= gameEndings.length) return;
+  gameEndings[index][field] = value;
+  _saveDevEndings();
+  _renderEndingsExport();
+}
+
+function _renderEndingsList() {
+  var list = document.getElementById("dev-endings-list");
+  if (!list) return;
+  if (gameEndings.length === 0) {
+    list.innerHTML = '<div class="dev-attach-empty">還沒有設定任何結局</div>';
+    return;
+  }
+  list.innerHTML = "";
+  for (var i = 0; i < gameEndings.length; i++) {
+    var e = gameEndings[i];
+    var card = document.createElement("div");
+    card.className = "dev-ending-card";
+
+    var header = document.createElement("div");
+    header.className = "dev-ending-header";
+    var title = document.createElement("span");
+    title.textContent = "#" + (i + 1);
+    var removeBtn = document.createElement("button");
+    removeBtn.className = "dev-ending-remove";
+    removeBtn.textContent = "✕ 移除";
+    removeBtn.onclick = (function(idx) { return function() { removeGameEnding(idx); }; })(i);
+    header.appendChild(title);
+    header.appendChild(removeBtn);
+    card.appendChild(header);
+
+    var nameLabel = document.createElement("label");
+    nameLabel.textContent = "結局名稱";
+    var nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.value = e.name || "";
+    nameInput.oninput = (function(idx) { return function() { _updateEndingField(idx, "name", this.value); }; })(i);
+    card.appendChild(nameLabel);
+    card.appendChild(nameInput);
+
+    var condLabel = document.createElement("label");
+    condLabel.textContent = "觸發條件（JS 表達式，結果為 true 時觸發）";
+    var condInput = document.createElement("input");
+    condInput.type = "text";
+    condInput.value = e.condition || "";
+    condInput.placeholder = "例：game.hp <= 0 || game.money >= 100";
+    condInput.oninput = (function(idx) { return function() { _updateEndingField(idx, "condition", this.value); }; })(i);
+    card.appendChild(condLabel);
+    card.appendChild(condInput);
+
+    var htmlLabel = document.createElement("label");
+    htmlLabel.textContent = "顯示內容（HTML）";
+    var htmlArea = document.createElement("textarea");
+    htmlArea.spellcheck = false;
+    htmlArea.value = e.html || "";
+    htmlArea.oninput = (function(idx) { return function() { _updateEndingField(idx, "html", this.value); }; })(i);
+    card.appendChild(htmlLabel);
+    card.appendChild(htmlArea);
+
+    list.appendChild(card);
+  }
+}
+
+function _buildEndingsExportCode() {
+  if (gameEndings.length === 0) return "// 沒有設定結局\nvar gameEndings = [];";
+  var lines = ["var gameEndings = ["];
+  for (var i = 0; i < gameEndings.length; i++) {
+    var e = gameEndings[i];
+    lines.push("  {");
+    lines.push('    name: ' + JSON.stringify(e.name || "") + ',');
+    lines.push('    condition: ' + JSON.stringify(e.condition || "") + ',');
+    lines.push('    html: ' + JSON.stringify(e.html || "") + '');
+    lines.push("  }" + (i < gameEndings.length - 1 ? "," : ""));
+  }
+  lines.push("];");
+  return lines.join("\n");
+}
+
+function _renderEndingsExport() {
+  var el = document.getElementById("dev-endings-export-code");
+  if (el) el.value = _buildEndingsExportCode();
+}
+
+function copyEndingsExportCode() {
+  _copyToClipboard(_buildEndingsExportCode(), "dev-endings-export-code");
+}
+
+function _saveDevEndings() {
+  try {
+    localStorage.setItem(DEV_STORE_ENDINGS, JSON.stringify(gameEndings));
+  } catch (e) {}
+}
+
+function _loadDevEndings() {
+  var saved = null;
+  try { saved = localStorage.getItem(DEV_STORE_ENDINGS); } catch (e) {}
+  if (saved) {
+    try {
+      var parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) gameEndings = parsed;
+    } catch (e) {}
+  }
+}
+
 // ── localStorage 持久化 ───────────────────────────────────────
 function _saveDevState() {
   try {
@@ -836,4 +995,5 @@ document.addEventListener("DOMContentLoaded", function() {
   _detectEventsJsFunctions();
   _loadDevMap();
   _loadDevState();
+  _loadDevEndings();
 });
