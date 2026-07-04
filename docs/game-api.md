@@ -92,6 +92,6 @@ if (game.hasRedKey) { }  // 在 B 格事件裡檢查
 ## 移除已觸發的事件（一次性）
 
 ```js
-// 在事件函式最後呼叫，讓這格只能觸發一次
-delete tileEvents[game.x + "," + game.y];
+// 在事件函式最後呼叫：移除這格的事件，事件地塊變回空地
+removeEventAt(game.x, game.y);
 ```

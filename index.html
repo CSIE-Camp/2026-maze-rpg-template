@@ -108,13 +108,11 @@
           <div class="legend-item"><span class="legend-dot" style="background:#22e060"></span>玩家</div>
           <div class="legend-item"><span class="legend-dot" style="background:#2d4a7a"></span>通道</div>
           <div class="legend-item"><span class="legend-dot" style="background:#080d1a;border:1px solid #333"></span>牆壁</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#c89010"></span>寶箱</div>
           <div class="legend-item"><span class="legend-dot" style="background:#b83030"></span>敵人</div>
           <div class="legend-item"><span class="legend-dot" style="background:#604898"></span>門</div>
           <div class="legend-item"><span class="legend-dot" style="background:#1878b0"></span>射擊遊戲</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#287840"></span>商店</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#c05010"></span>傳送門</div>
           <div class="legend-item"><span class="legend-dot" style="background:#880010"></span>最終魔王</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#5a3890"></span>事件地塊</div>
           <div class="legend-item"><span class="legend-dot" style="background:#050810;border:1px solid #333"></span>未探索</div>
         </div>
       </div>
@@ -343,38 +341,90 @@
     <div id="dev-panel-bg" onclick="closeDevPanel()"></div>
     <div id="dev-panel-content">
 
-      <!-- 左：程式碼編輯器 -->
-      <div id="dev-panel-left">
-        <div class="dev-panel-title">🛠 開發模式 ── 事件程式碼</div>
-        <textarea id="dev-code-editor" spellcheck="false"></textarea>
-        <div id="dev-editor-toolbar">
-          <button class="btn btn-dev-apply" onclick="applyDevCode()">▶ 套用程式碼</button>
-          <button class="btn btn-dev-revert" id="btn-dev-revert" onclick="revertLastDevCode()" style="display:none">↩️ 返回上一次套用</button>
-          <button class="btn btn-dev-clear" id="btn-dev-clear" onclick="clearDevState()">🗑️ 清除暫存</button>
-          <span id="dev-status"></span>
-        </div>
+      <!-- 分頁列 -->
+      <div id="dev-tab-bar">
+        <button id="dev-tab-btn-events" class="dev-tab-btn dev-tab-btn--active" onclick="switchDevTab('events')">🛠 事件程式碼</button>
+        <button id="dev-tab-btn-map" class="dev-tab-btn" onclick="switchDevTab('map')">🗺️ 地圖編輯</button>
+        <button class="btn btn-minimap-close" id="dev-panel-close-btn" onclick="closeDevPanel()">✕ 關閉</button>
       </div>
 
-      <!-- 右：掛接 + 匯出 -->
-      <div id="dev-panel-right">
-        <div class="dev-panel-title">📍 掛接事件</div>
-        <div id="dev-position">目前位置：(?, ?)</div>
-        <div id="dev-attach-controls">
-          <select id="dev-fn-select"></select>
-          <button class="btn btn-dev-attach" onclick="attachEventHere()">掛接在目前位置</button>
+      <!-- ── 分頁一：事件程式碼 ── -->
+      <div id="dev-tab-events" class="dev-tab-page">
+
+        <!-- 左：程式碼編輯器 -->
+        <div id="dev-panel-left">
+          <div class="dev-panel-title">🛠 事件程式碼</div>
+          <textarea id="dev-code-editor" spellcheck="false"></textarea>
+          <div id="dev-editor-toolbar">
+            <button class="btn btn-dev-apply" onclick="applyDevCode()">▶ 套用程式碼</button>
+            <button class="btn btn-dev-revert" id="btn-dev-revert" onclick="revertLastDevCode()" style="display:none">↩️ 返回上一次套用</button>
+            <button class="btn btn-dev-clear" id="btn-dev-clear" onclick="clearDevState()">🗑️ 清除暫存</button>
+            <span id="dev-status"></span>
+          </div>
         </div>
-        <div class="dev-panel-hint">先關閉面板、把角色走到目標格，再回來按掛接</div>
 
-        <div class="dev-panel-subtitle">已掛接事件</div>
-        <div id="dev-attach-list"></div>
+        <!-- 右：掛接 + 快速加入 + 匯出 -->
+        <div id="dev-panel-right">
+          <div class="dev-panel-title">📍 掛接事件</div>
+          <div id="dev-position">目前位置：(?, ?)</div>
+          <div id="dev-attach-controls">
+            <select id="dev-fn-select"></select>
+            <button class="btn btn-dev-attach" onclick="attachEventHere()">掛接在目前位置</button>
+          </div>
+          <div id="dev-style-controls">
+            <label>圖示 <input id="dev-event-icon" maxlength="4" value="❗"></label>
+            <label>顏色 <input id="dev-event-color" type="color" value="#5a3890"></label>
+          </div>
+          <div class="dev-panel-hint">掛接後該格會變成事件地塊（覆蓋原本的地塊）</div>
 
-        <div class="dev-panel-subtitle">
-          匯出 events.js
-          <button class="btn btn-dev-copy" onclick="copyExportCode()">📋 複製</button>
+          <div class="dev-panel-subtitle">快速加入</div>
+          <div id="dev-quick-add">
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('portal')">⚡ 傳送門</button>
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('chest')">📦 寶箱</button>
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('shop')">🛒 商店</button>
+          </div>
+          <div class="dev-panel-hint">自動加入範本程式碼，並掛接在目前位置</div>
+
+          <div class="dev-panel-subtitle">已掛接事件</div>
+          <div id="dev-attach-list"></div>
+
+          <div class="dev-panel-subtitle">
+            匯出 events.js
+            <button class="btn btn-dev-copy" onclick="copyExportCode()">📋 複製</button>
+          </div>
+          <textarea id="dev-export-code" readonly spellcheck="false"></textarea>
         </div>
-        <textarea id="dev-export-code" readonly spellcheck="false"></textarea>
 
-        <button class="btn btn-minimap-close" onclick="closeDevPanel()">✕ 關閉</button>
+      </div>
+
+      <!-- ── 分頁二：地圖編輯 ── -->
+      <div id="dev-tab-map" class="dev-tab-page" style="display:none">
+
+        <!-- 左：地圖格 -->
+        <div id="dev-map-left">
+          <div class="dev-panel-title">🗺️ 地圖編輯</div>
+          <div id="dev-map-grid"></div>
+          <div class="dev-panel-hint">點擊或按住拖曳塗色。事件地塊由「事件程式碼」分頁管理，套用地圖後仍會保留。</div>
+        </div>
+
+        <!-- 右：工具 + 匯出 -->
+        <div id="dev-map-right">
+          <div class="dev-panel-subtitle">筆刷</div>
+          <div id="dev-map-palette"></div>
+
+          <div id="dev-map-toolbar">
+            <button class="btn btn-dev-apply" onclick="applyDevMap()">▶ 套用地圖</button>
+            <button class="btn btn-dev-clear" onclick="resetDevMap()">↩️ 還原原始地圖</button>
+          </div>
+          <span id="dev-map-status"></span>
+
+          <div class="dev-panel-subtitle">
+            匯出地圖程式碼
+            <button class="btn btn-dev-copy" onclick="copyMapExportCode()">📋 複製</button>
+          </div>
+          <textarea id="dev-map-export-code" readonly spellcheck="false"></textarea>
+        </div>
+
       </div>
 
     </div>

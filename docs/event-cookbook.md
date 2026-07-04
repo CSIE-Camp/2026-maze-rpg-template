@@ -106,8 +106,8 @@ function onSecret() {
   game.money += 50;
   game.message = "✨ 你發現了隱藏金幣！+50 金幣。";
 
-  // 移除自己，這格之後踩到什麼都不發生
-  delete tileEvents[game.x + "," + game.y];
+  // 移除自己：事件地塊變回空地，之後踩到什麼都不發生
+  removeEventAt(game.x, game.y);
 }
 ```
 
@@ -158,13 +158,13 @@ function onToll() {
 function onRedKeyPickup() {
   game.hasRedKey = true;
   game.message = "🔑 你撿到了紅色鑰匙！";
-  delete tileEvents[game.x + "," + game.y];   // 一次性
+  removeEventAt(game.x, game.y);   // 一次性：撿完就消失
 }
 
 function onRedKeyDoor() {
   if (game.hasRedKey) {
     game.message = "🚪 紅色大門打開了！";
-    game.setTile(game.x, game.y, 0);           // 門消失
+    removeEventAt(game.x, game.y);             // 門消失
   } else {
     game.message = "🔒 這扇門需要紅色鑰匙才能打開。";
     game.x = game.x - 1;                       // 擋回去

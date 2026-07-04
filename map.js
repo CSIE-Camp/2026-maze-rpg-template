@@ -5,7 +5,8 @@
 
 var MAP_TILE = {
   EMPTY: 0, WALL: 1, CHEST: 2, ENEMY: 3, DOOR: 4,
-  MINI_GAME: 5, SHOP: 6, PORTAL: 8, FINAL_BOSS: 9
+  MINI_GAME: 5, SHOP: 6, PORTAL: 8, FINAL_BOSS: 9,
+  EVENT: 10   // 事件地塊：綁定學員自訂事件（見 events.js / 開發模式）
 };
 
 var mapGrid = [

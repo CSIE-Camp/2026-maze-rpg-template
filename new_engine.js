@@ -380,13 +380,11 @@ function renderMiniMap() {
   var TC = {};
   TC[MAP_TILE.EMPTY]      = "#2d4a7a";
   TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.CHEST]      = "#c89010";
   TC[MAP_TILE.ENEMY]      = "#b83030";
   TC[MAP_TILE.DOOR]       = "#604898";
   TC[MAP_TILE.MINI_GAME]  = "#1878b0";
-  TC[MAP_TILE.SHOP]       = "#287840";
-  TC[MAP_TILE.PORTAL]     = "#c05010";
   TC[MAP_TILE.FINAL_BOSS] = "#880010";
+  TC[MAP_TILE.EVENT]      = "#5a3890";
 
   for (var dy = -RADIUS; dy <= RADIUS; dy++) {
     for (var dx = -RADIUS; dx <= RADIUS; dx++) {
@@ -406,6 +404,11 @@ function renderMiniMap() {
         var isExplored = visitedTiles.indexOf(mx + "," + my) !== -1;
         if (isVisible || isExplored) {
           color = TC[currentMap[my][mx]] || "#2d4a7a";
+          // 事件地塊用學員自訂的顏色
+          if (currentMap[my][mx] === MAP_TILE.EVENT && typeof tileEvents !== "undefined") {
+            var _ev = tileEvents[mx + "," + my];
+            if (_ev && _ev.color) color = _ev.color;
+          }
         } else {
           color = "#050810";
         }
@@ -436,13 +439,11 @@ function renderMiniMapLarge() {
   var TC = {};
   TC[MAP_TILE.EMPTY]      = "#2d4a7a";
   TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.CHEST]      = "#c89010";
   TC[MAP_TILE.ENEMY]      = "#b83030";
   TC[MAP_TILE.DOOR]       = "#604898";
   TC[MAP_TILE.MINI_GAME]  = "#1878b0";
-  TC[MAP_TILE.SHOP]       = "#287840";
-  TC[MAP_TILE.PORTAL]     = "#c05010";
   TC[MAP_TILE.FINAL_BOSS] = "#880010";
+  TC[MAP_TILE.EVENT]      = "#5a3890";
 
   for (var y = 0; y < rows; y++) {
     for (var x = 0; x < cols; x++) {
@@ -456,6 +457,11 @@ function renderMiniMapLarge() {
         color = "#22e060";
       } else if (isVisible || isExplored) {
         color = TC[currentMap[y][x]] || "#2d4a7a";
+        // 事件地塊用學員自訂的顏色
+        if (currentMap[y][x] === MAP_TILE.EVENT && typeof tileEvents !== "undefined") {
+          var _ev2 = tileEvents[x + "," + y];
+          if (_ev2 && _ev2.color) color = _ev2.color;
+        }
       } else {
         color = "#050810";
       }
@@ -1379,11 +1385,6 @@ function renderMap() {
       } else {
         tile.classList.add("tile--hidden");
       }
-      // 已掛接自訂事件的格子加上 ✨ 徽章（僅在可見/已探索時顯示）
-      if (typeof tileEvents !== "undefined" && tileEvents[x + "," + y] &&
-          (isVisible || isExplored)) {
-        tile.classList.add("tile--dev-event");
-      }
       board.appendChild(tile);
     }
   }
@@ -1405,10 +1406,25 @@ function applyCameraTransform() {
 }
 
 function applyTileStyle(tile, tileType, x, y) {
+  // 事件地塊：顏色與圖示由學員設定（tileEvents 表，見 dev_panel.js / events.js）
+  if (tileType === MAP_TILE.EVENT) {
+    tile.classList.add("tile--event");
+    var meta = (typeof tileEvents !== "undefined") ? tileEvents[x + "," + y] : null;
+    if (meta && typeof meta === "object") {
+      if (meta.color) tile.style.background = meta.color;
+      if (meta.icon) {
+        var iconSpan = document.createElement("span");
+        iconSpan.className = "tile-emoji";
+        iconSpan.textContent = meta.icon;
+        tile.appendChild(iconSpan);
+      }
+    }
+    return;
+  }
+
   var sm = {};
   sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
   sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.CHEST]      = { cls: "tile--chest",    src: "assets/picture/寶箱.png",  alt: "寶箱",   emoji: "📦" };
   var _enemySrc = "assets/picture/哥布林.png";
   if (tileType === MAP_TILE.ENEMY && x !== undefined && y !== undefined) {
     var _ed = _pickEnemy(x, y);
@@ -1417,9 +1433,8 @@ function applyTileStyle(tile, tileType, x, y) {
   sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: _enemySrc,                   alt: "敵人",   emoji: "👺" };
   sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/門鎖.png"    ,alt: "門",    emoji: "🚪" };
   sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "assets/picture/小遊戲靶.png",alt: "小遊戲", emoji: "🌀" };
-  sm[MAP_TILE.SHOP]       = { cls: "tile--shop",     src: "assets/picture/商店.png"    ,alt: "商店",   emoji: "🛒" };
   sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/黑暗巨龍.png",alt: "魔王",   emoji: "👿" };
-  sm[MAP_TILE.PORTAL]     = { cls: "tile--portal",   src: "assets/picture/傳送門.png",  alt: "傳送門", emoji: "⚡" };
+  // 寶箱(2)/商店(6)/傳送門(8) 不再是特殊地塊：未列入 sm，會落到下方 fallback 當作空地
 
   var info = sm[tileType];
   if (!info) { tile.classList.add("tile--empty"); return; }
@@ -1570,15 +1585,13 @@ function checkDialogueTriggers(x, y) {
 
 function checkTileEvent(x, y) {
   var t = currentMap[y][x];
-  if      (t === MAP_TILE.CHEST)      triggerChest(x, y);
-  else if (t === MAP_TILE.ENEMY)      triggerEnemy(x, y);
+  if      (t === MAP_TILE.ENEMY)      triggerEnemy(x, y);
   else if (t === MAP_TILE.MINI_GAME)  triggerMiniGame(x, y);
-  else if (t === MAP_TILE.SHOP)       triggerShop();
   else if (t === MAP_TILE.FINAL_BOSS) triggerFinalBoss(x, y);
-  else if (t === MAP_TILE.PORTAL)     triggerPortal(x, y);
-
-  // 學員自訂的踩地塊事件（開發模式掛接，見 dev_panel.js）
-  if (typeof dispatchCustomTileEvent === "function") dispatchCustomTileEvent(x, y);
+  // 寶箱/商店/傳送門已改由事件地塊實作（見 docs/event-cookbook.md 與開發模式的快速加入）
+  else if (t === MAP_TILE.EVENT && typeof dispatchCustomTileEvent === "function") {
+    dispatchCustomTileEvent(x, y);
+  }
 }
 
 function _findPortalDestination(x, y) {
@@ -3699,6 +3712,8 @@ function restartGame() {
   currentPlayer.tempDef   = 0;
 
   currentMap            = mapGrid.map(function(row) { return row.slice(); });
+  // 重新蓋上事件地塊（掛接表由 dev_panel.js / events.js 維護）
+  if (typeof syncEventTiles === "function") syncEventTiles();
   visitedTiles          = [];
   currentEnemy          = null;
   activeClones          = [];
