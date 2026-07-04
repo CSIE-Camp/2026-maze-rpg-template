@@ -61,6 +61,7 @@
               <button class="btn btn-side-action btn-side-code" id="btn-open-code" onclick="window.open('https://hackmd.io/@Zaiku23/ntnucsiecamp','_blank')">💻 程式碼</button>
               <button class="btn btn-side-action" id="btn-open-inventory" onclick="openInventory()">🎒 背包</button>
               <button class="btn btn-side-action btn-party-open" onclick="openPartyOverlay()">👥 隊伍</button>
+              <button class="btn btn-side-action btn-side-dev" id="btn-open-dev" onclick="openDevPanel()">🛠 開發模式</button>
             </div>
           </div>
         </div>
@@ -336,12 +337,65 @@
 
 
   <!-- ════════════════════════════════════════════════════
+       開發模式面板（Live Preview）
+       ════════════════════════════════════════════════════ -->
+  <div id="dev-panel-overlay" style="display:none">
+    <div id="dev-panel-bg" onclick="closeDevPanel()"></div>
+    <div id="dev-panel-content">
+
+      <!-- 左：程式碼編輯器 -->
+      <div id="dev-panel-left">
+        <div class="dev-panel-title">🛠 開發模式 ── 事件程式碼</div>
+        <textarea id="dev-code-editor" spellcheck="false"></textarea>
+        <div id="dev-editor-toolbar">
+          <button class="btn btn-dev-apply" onclick="applyDevCode()">▶ 套用程式碼</button>
+          <span id="dev-status"></span>
+        </div>
+      </div>
+
+      <!-- 右：掛接 + 匯出 -->
+      <div id="dev-panel-right">
+        <div class="dev-panel-title">📍 掛接事件</div>
+        <div id="dev-position">目前位置：(?, ?)</div>
+        <div id="dev-attach-controls">
+          <select id="dev-fn-select"></select>
+          <button class="btn btn-dev-attach" onclick="attachEventHere()">掛接在目前位置</button>
+        </div>
+        <div class="dev-panel-hint">先關閉面板、把角色走到目標格，再回來按掛接</div>
+
+        <div class="dev-panel-subtitle">已掛接事件</div>
+        <div id="dev-attach-list"></div>
+
+        <div class="dev-panel-subtitle">
+          匯出 events.js
+          <button class="btn btn-dev-copy" onclick="copyExportCode()">📋 複製</button>
+        </div>
+        <textarea id="dev-export-code" readonly spellcheck="false"></textarea>
+
+        <button class="btn btn-minimap-close" onclick="closeDevPanel()">✕ 關閉</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 自訂事件面板（學員用 game.panel = "..." 顯示） -->
+  <div id="event-panel" style="display:none">
+    <div id="event-panel-card">
+      <button id="event-panel-close" onclick="game.panel = ''">✕</button>
+      <div id="event-panel-content"></div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════
        載入 JS
        ════════════════════════════════════════════════════ -->
   <script src="map.js"></script>
   <script src="new_data.js"></script>
   <script src="new_engine.js"></script>
   <script src="audio.js"></script>
+  <script src="game_api.js"></script>
+  <script src="dev_panel.js"></script>
 
   <script>
     function openShopFromHUD() {

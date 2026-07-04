@@ -1739,3 +1739,149 @@ body {
   display: none;
   line-height: 1.6;
 }
+
+/* ════════════════════════════════════════════════════════════
+   開發模式面板（Live Preview）── dev_panel.js
+   ════════════════════════════════════════════════════════════ */
+.btn-side-action.btn-side-dev { background: #2a1a40; border-color: #5a3890; color: #c8a8f8; }
+.btn-side-action.btn-side-dev:hover { background: #3a2858; }
+
+#dev-panel-overlay {
+  position: fixed; inset: 0; z-index: 2500;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+#dev-panel-bg {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+#dev-panel-content {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: row; flex-wrap: wrap; gap: 20px;
+  background: #0a1020; border: 2px solid #5a3890;
+  border-radius: 14px; padding: 22px 26px;
+  width: 92vw; max-width: 900px;
+  max-height: none;
+  margin: auto;
+  box-shadow: 0 0 40px rgba(90, 56, 144, 0.5);
+}
+
+.dev-panel-title {
+  font-size: 15px; font-weight: bold; color: #c8a8f8;
+  border-bottom: 1px solid #3a2858; padding-bottom: 8px;
+}
+.dev-panel-subtitle {
+  font-size: 13px; font-weight: bold; color: #a0b8d8;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #1e3560; padding-bottom: 6px;
+  margin-top: 4px;
+}
+.dev-panel-hint { font-size: 11px; color: #6a7a9a; }
+
+/* 左欄：程式碼編輯器 */
+#dev-panel-left {
+  display: flex; flex-direction: column; gap: 12px;
+  flex: 1 1 420px;
+  min-width: 280px;
+}
+#dev-code-editor {
+  flex: 1; min-height: 300px;
+  background: #060a14; color: #d8e8ff;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 12px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 13px; line-height: 1.6;
+  resize: none; outline: none;
+}
+#dev-code-editor:focus { border-color: #5a3890; }
+#dev-editor-toolbar { display: flex; align-items: center; gap: 12px; }
+.btn-dev-apply { background: #2e7d32; color: #fff; flex: none; padding: 8px 20px; }
+#dev-status { font-size: 12px; flex: 1; }
+.dev-status-ok    { color: #80c898; }
+.dev-status-error { color: #f08080; }
+
+/* 右欄：掛接 + 匯出 */
+#dev-panel-right {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 280px;
+  min-width: 240px;
+}
+#dev-position { font-size: 13px; color: #c8d8f0; }
+#dev-attach-controls { display: flex; gap: 8px; }
+#dev-fn-select {
+  flex: 1; background: #060a14; color: #d8e8ff;
+  border: 1px solid #1e3560; border-radius: 6px;
+  padding: 6px 8px; font-size: 13px; outline: none;
+}
+.btn-dev-attach { background: #1565c0; color: #fff; flex: none; padding: 6px 12px; font-size: 12px; }
+.btn-dev-copy   { background: #333; color: #ccc; flex: none; padding: 4px 10px; font-size: 11px; }
+
+#dev-attach-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 140px; overflow-y: auto;
+}
+.dev-attach-empty { font-size: 12px; color: #6a7a9a; }
+.dev-attach-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #101830; border: 1px solid #1e3560; border-radius: 6px;
+  padding: 5px 10px; font-size: 12px; color: #c8d8f0;
+  font-family: "Consolas", "Menlo", monospace;
+}
+.dev-attach-remove {
+  background: none; border: none; color: #f08080;
+  cursor: pointer; font-size: 12px; padding: 2px 4px;
+}
+.dev-attach-remove:hover { color: #ff4040; }
+
+#dev-export-code {
+  height: 150px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
+
+/* 已掛接事件的格子徽章 */
+.tile--dev-event::after {
+  content: "✨";
+  position: absolute; top: 1px; right: 2px;
+  font-size: 13px; z-index: 6;
+  pointer-events: none;
+  text-shadow: 0 0 4px #000;
+}
+
+/* ── 自訂事件面板（game.panel = "..."）─────────────────────── */
+#event-panel {
+  position: fixed; inset: 0; z-index: 1800;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+#event-panel-card {
+  position: relative;
+  background: #0a1020; border: 2px solid #1e3560;
+  border-radius: 14px; padding: 26px 32px;
+  min-width: 320px; max-width: 520px; max-height: 80vh;
+  overflow-y: auto;
+  color: #d8e8ff;
+  box-shadow: 0 0 40px rgba(15, 52, 96, 0.9);
+}
+#event-panel-close {
+  position: absolute; top: 8px; right: 10px;
+  background: none; border: none; color: #6a7a9a;
+  font-size: 15px; cursor: pointer;
+}
+#event-panel-close:hover { color: #fff; }
+#event-panel-content h1, #event-panel-content h2, #event-panel-content h3 {
+  color: #c8d8f8; margin-bottom: 10px;
+}
+#event-panel-content p { margin-bottom: 10px; line-height: 1.6; }
+#event-panel-content button {
+  background: #1e3560; color: #c8d8f8;
+  border: 1px solid #2a4880; border-radius: 8px;
+  padding: 8px 16px; margin: 4px 6px 0 0;
+  font-size: 14px; cursor: pointer;
+  transition: background 0.15s;
+}
+#event-panel-content button:hover { background: #2a4880; }

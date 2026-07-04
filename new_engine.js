@@ -1379,6 +1379,11 @@ function renderMap() {
       } else {
         tile.classList.add("tile--hidden");
       }
+      // 已掛接自訂事件的格子加上 ✨ 徽章（僅在可見/已探索時顯示）
+      if (typeof tileEvents !== "undefined" && tileEvents[x + "," + y] &&
+          (isVisible || isExplored)) {
+        tile.classList.add("tile--dev-event");
+      }
       board.appendChild(tile);
     }
   }
@@ -1441,8 +1446,12 @@ function closeAnyOverlay() {
   var inspectPanel     = document.getElementById("inspect-panel");
   var shopScreen       = document.getElementById("screen-shop");
   var settingsOverlay  = document.getElementById("settings-overlay");
+  var devPanelOverlay  = document.getElementById("dev-panel-overlay");
+  var eventPanel       = document.getElementById("event-panel");
 
   var partyOverlay     = document.getElementById("party-overlay");
+  if (devPanelOverlay  && devPanelOverlay.style.display  !== "none") { closeDevPanel();       return true; }
+  if (eventPanel       && eventPanel.style.display       !== "none") { game.panel = "";       return true; }
   if (settingsOverlay  && settingsOverlay.style.display  !== "none") { closeSettings();       return true; }
   if (partyOverlay     && partyOverlay.style.display     !== "none") { closePartyOverlay();   return true; }
   if (minimapOverlay   && minimapOverlay.style.display   !== "none") { closeMiniMapOverlay(); return true; }
@@ -1462,6 +1471,10 @@ function updateControlsHint() {
 
 document.addEventListener("keydown", function(e) {
   if (gameOver) return;
+
+  // 焦點在輸入框（開發模式編輯器等）時不攔截按鍵，否則打 WASD 會讓角色亂跑
+  var tag = e.target && e.target.tagName;
+  if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return;
 
   if (e.key === "Escape") {
     e.preventDefault();
@@ -1484,6 +1497,9 @@ document.addEventListener("keydown", function(e) {
 
   var screen = document.getElementById("screen-map");
   if (!screen || screen.style.display === "none") return;
+
+  // 開發模式面板開啟時，不移動角色、不開其他 overlay
+  if (typeof isDevPanelOpen === "function" && isDevPanelOpen()) return;
 
   if (e.key === "m" || e.key === "M") { openMiniMapOverlay(); return; }
   if (e.key === "b" || e.key === "B") { openInventory();      return; }
@@ -1560,6 +1576,9 @@ function checkTileEvent(x, y) {
   else if (t === MAP_TILE.SHOP)       triggerShop();
   else if (t === MAP_TILE.FINAL_BOSS) triggerFinalBoss(x, y);
   else if (t === MAP_TILE.PORTAL)     triggerPortal(x, y);
+
+  // 學員自訂的踩地塊事件（開發模式掛接，見 dev_panel.js）
+  if (typeof dispatchCustomTileEvent === "function") dispatchCustomTileEvent(x, y);
 }
 
 function _findPortalDestination(x, y) {
