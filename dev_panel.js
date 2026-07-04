@@ -9,8 +9,28 @@
 var DEV_STORE_CODE   = "hackathon_dev_code";
 var DEV_STORE_EVENTS = "hackathon_dev_events";
 
+// 紀錄所有內建的 window 函式，用來區分後載入的 events.js 裡宣告的學員函式
+var builtinFunctions = new Set();
+for (var key in window) {
+  try {
+    if (typeof window[key] === "function") {
+      builtinFunctions.add(key);
+    }
+  } catch (e) {}
+}
+
+// events.js 宣告的學員函式集合，以及 events.js 內建的初始掛接表
+var eventsJsFunctions = new Set();
+var initialTileEvents = {};
+
+// 追蹤當前正在執行的程式碼，以及上一次成功套用的程式碼，用以實現「返回上一次套用」
+var currentlyRunningCode = "";
+var lastAppliedCode = null;
+
 // 掛接表："x,y" → 函式名稱（存名字字串，重新套用程式碼後自動綁到新版函式）
-var tileEvents = {};
+if (typeof tileEvents === "undefined") {
+  var tileEvents = {};
+}
 
 var DEV_DEFAULT_CODE =
   '// 在這裡寫你的事件函式，按「套用程式碼」後生效\n' +
@@ -57,12 +77,111 @@ function isDevPanelOpen() {
   return !!(overlay && overlay.style.display !== "none");
 }
 
+// ── 輔助生命週期與 QoL 函式 ────────────────────────────────────
+function _detectEventsJsFunctions() {
+  for (var key in window) {
+    try {
+      if (typeof window[key] === "function" && !builtinFunctions.has(key)) {
+        eventsJsFunctions.add(key);
+      }
+    } catch (e) {}
+  }
+  if (typeof tileEvents !== "undefined") {
+    initialTileEvents = Object.assign({}, tileEvents);
+  }
+}
+
+function _cleanupDeletedFunctions(oldCode, newCode) {
+  var oldFuncs = _scanFunctionNames(oldCode);
+  var newFuncs = _scanFunctionNames(newCode);
+  for (var i = 0; i < oldFuncs.length; i++) {
+    var fnName = oldFuncs[i];
+    if (newFuncs.indexOf(fnName) === -1) {
+      try {
+        delete window[fnName];
+      } catch (e) {
+        window[fnName] = undefined;
+      }
+    }
+  }
+}
+
+function _getDuplicateWarning(code) {
+  var duplicates = [];
+  var panelFuncs = _scanFunctionNames(code);
+  panelFuncs.forEach(function(name) {
+    if (eventsJsFunctions.has(name)) {
+      duplicates.push(name);
+    }
+  });
+  if (duplicates.length > 0) {
+    return " (⚠️ 覆蓋 events.js 同名函式: " + duplicates.join(", ") + ")";
+  }
+  return "";
+}
+
+function revertLastDevCode() {
+  if (!lastAppliedCode) return;
+  var editor = document.getElementById("dev-code-editor");
+  if (editor) {
+    editor.value = lastAppliedCode;
+  }
+  lastAppliedCode = null;
+  var revertBtn = document.getElementById("btn-dev-revert");
+  if (revertBtn) revertBtn.style.display = "none";
+  
+  applyDevCode();
+}
+
+function clearDevState() {
+  if (!confirm("確定要清除開發面板的暫存程式碼與掛接事件嗎？\n這將恢復為 events.js 的原始內容。")) return;
+  
+  try {
+    localStorage.removeItem(DEV_STORE_CODE);
+    localStorage.removeItem(DEV_STORE_EVENTS);
+  } catch (e) {}
+  
+  var editor = document.getElementById("dev-code-editor");
+  if (editor) editor.value = DEV_DEFAULT_CODE;
+  
+  tileEvents = Object.assign({}, initialTileEvents);
+  
+  _cleanupDeletedFunctions(currentlyRunningCode, DEV_DEFAULT_CODE);
+  currentlyRunningCode = DEV_DEFAULT_CODE;
+  lastAppliedCode = null;
+  
+  var revertBtn = document.getElementById("btn-dev-revert");
+  if (revertBtn) revertBtn.style.display = "none";
+  
+  try {
+    (0, eval)(currentlyRunningCode);
+  } catch (e) {}
+  
+  _setDevStatus("🗑️ 已清除暫存，已載入 events.js 的設定", false);
+  _refreshFnSelect();
+  _renderAttachList();
+  _renderExport();
+  renderMap();
+}
+
 // ── 套用程式碼 ────────────────────────────────────────────────
 function applyDevCode() {
   var code = document.getElementById("dev-code-editor").value;
   try {
     (0, eval)(code);  // 間接 eval：在全域作用域執行，函式才掛得到 window 上
-    _setDevStatus("✅ 已套用！共 " + _scanFunctionNames(code).length + " 個函式", false);
+    
+    // 清除已刪除的函式，並儲存上一次成功套用的狀態
+    if (currentlyRunningCode !== code) {
+      _cleanupDeletedFunctions(currentlyRunningCode, code);
+      lastAppliedCode = currentlyRunningCode;
+      currentlyRunningCode = code;
+      
+      var revertBtn = document.getElementById("btn-dev-revert");
+      if (revertBtn) revertBtn.style.display = "inline-block";
+    }
+    
+    var dupWarning = _getDuplicateWarning(code);
+    _setDevStatus("✅ 已套用！共 " + _scanFunctionNames(code).length + " 個函式" + dupWarning, false);
   } catch (e) {
     _setDevStatus("❌ " + e.message, true);
     return;
@@ -70,6 +189,8 @@ function applyDevCode() {
   _refreshFnSelect();
   _renderExport();
   _saveDevState();
+  _renderAttachList();
+  renderMap();
 }
 
 function _setDevStatus(msg, isError) {
@@ -145,16 +266,31 @@ function _renderAttachList() {
     return;
   }
   list.innerHTML = "";
+  
+  // 掃描編輯器內已宣告的函式
+  var editorVal = document.getElementById("dev-code-editor").value;
+  var declaredFunctions = _scanFunctionNames(editorVal);
+  
   for (var i = 0; i < keys.length; i++) {
     var key = keys[i];
+    var fnName = tileEvents[key];
+    var isInvalid = (declaredFunctions.indexOf(fnName) === -1);
+    
     var row = document.createElement("div");
-    row.className = "dev-attach-row";
+    row.className = "dev-attach-row" + (isInvalid ? " dev-attach-row--invalid" : "");
+    
     var label = document.createElement("span");
-    label.textContent = "(" + key + ") → " + tileEvents[key];
+    if (isInvalid) {
+      label.innerHTML = "(" + key + ") → " + fnName + ' <span class="dev-attach-invalid-label">(⚠️ 目前無效)</span>';
+    } else {
+      label.textContent = "(" + key + ") → " + fnName;
+    }
+    
     var btn = document.createElement("button");
     btn.className = "dev-attach-remove";
     btn.textContent = "✕";
     btn.onclick = (function(k) { return function() { removeTileEvent(k); }; })(key);
+    
     row.appendChild(label);
     row.appendChild(btn);
     list.appendChild(row);
@@ -215,11 +351,26 @@ function _loadDevState() {
     events = localStorage.getItem(DEV_STORE_EVENTS);
   } catch (e) {}
   editor.value = (code !== null && code !== "") ? code : DEV_DEFAULT_CODE;
+  currentlyRunningCode = editor.value;
+  
   if (events) {
-    try { tileEvents = JSON.parse(events) || {}; } catch (e) { tileEvents = {}; }
+    try {
+      var localEvents = JSON.parse(events) || {};
+      // 合併 events.js 和 localStorage 中的掛接
+      for (var k in localEvents) {
+        tileEvents[k] = localEvents[k];
+      }
+    } catch (e) {
+      if (typeof tileEvents === "undefined") tileEvents = {};
+    }
   }
+  
   try {
     (0, eval)(editor.value);  // 自動套用上次的程式碼
+    if (code !== null && code !== "") {
+      var dupWarning = _getDuplicateWarning(editor.value);
+      _setDevStatus("⚠️ 目前執行的是開發面板暫存的程式碼" + dupWarning, false);
+    }
   } catch (e) {
     _setDevStatus("❌ 上次的程式碼有錯誤：" + e.message, true);
   }
@@ -239,5 +390,6 @@ document.addEventListener("DOMContentLoaded", function() {
       }
     });
   }
+  _detectEventsJsFunctions();
   _loadDevState();
 });

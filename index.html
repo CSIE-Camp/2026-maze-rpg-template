@@ -349,6 +349,8 @@
         <textarea id="dev-code-editor" spellcheck="false"></textarea>
         <div id="dev-editor-toolbar">
           <button class="btn btn-dev-apply" onclick="applyDevCode()">▶ 套用程式碼</button>
+          <button class="btn btn-dev-revert" id="btn-dev-revert" onclick="revertLastDevCode()" style="display:none">↩️ 返回上一次套用</button>
+          <button class="btn btn-dev-clear" id="btn-dev-clear" onclick="clearDevState()">🗑️ 清除暫存</button>
           <span id="dev-status"></span>
         </div>
       </div>
@@ -396,6 +398,7 @@
   <script src="audio.js"></script>
   <script src="game_api.js"></script>
   <script src="dev_panel.js"></script>
+  <script src="events.js"></script>
 
   <script>
     function openShopFromHUD() {

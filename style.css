@@ -1885,3 +1885,55 @@ body {
   transition: background 0.15s;
 }
 #event-panel-content button:hover { background: #2a4880; }
+
+/* ── 開發模式額外樣式（返回與清除暫存、無效掛接） ──────────────── */
+.btn-dev-revert {
+  background: #e65100;
+  color: #fff;
+  flex: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.12s, opacity 0.12s;
+  display: none;
+}
+.btn-dev-revert:hover {
+  transform: scale(1.06);
+  opacity: 0.9;
+}
+.btn-dev-revert:active {
+  transform: scale(0.97);
+}
+
+.btn-dev-clear {
+  background: #c62828;
+  color: #fff;
+  flex: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.12s, opacity 0.12s;
+}
+.btn-dev-clear:hover {
+  transform: scale(1.06);
+  opacity: 0.9;
+}
+.btn-dev-clear:active {
+  transform: scale(0.97);
+}
+
+.dev-attach-row--invalid {
+  border-color: #ef5350 !important;
+  background: #2a0c0c !important;
+}
+
+.dev-attach-invalid-label {
+  color: #ef5350;
+  font-weight: bold;
+  margin-left: 6px;
+}
+
