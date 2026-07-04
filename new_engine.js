@@ -1512,7 +1512,9 @@ document.addEventListener("keydown", function(e) {
   var screen = document.getElementById("screen-map");
   if (!screen || screen.style.display === "none") return;
 
-  // 開發模式面板開啟時，不移動角色、不開其他 overlay
+  // 任何 overlay 開啟時，不移動角色
+  var _eventPanel = document.getElementById("event-panel");
+  if (_eventPanel && _eventPanel.style.display !== "none") return;
   if (typeof isDevPanelOpen === "function" && isDevPanelOpen()) return;
 
   if (e.key === "m" || e.key === "M") { openMiniMapOverlay(); return; }
