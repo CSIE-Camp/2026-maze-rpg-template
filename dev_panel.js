@@ -15,8 +15,8 @@ var DEV_STORE_CODE   = "hackathon_dev_code";
 var DEV_STORE_EVENTS = "hackathon_dev_events";
 var DEV_STORE_MAP    = "hackathon_dev_map";
 
-// 事件地塊的預設外觀
-var DEV_EVENT_DEFAULT_ICON  = "❗";
+// 事件地塊的預設外觀（圖示為 assets/picture/ 路徑，空字串代表無圖示）
+var DEV_EVENT_DEFAULT_ICON  = "";
 var DEV_EVENT_DEFAULT_COLOR = "#5a3890";
 
 // 紀錄所有內建的 window 函式，用來區分後載入的 events.js 裡宣告的學員函式
@@ -53,13 +53,18 @@ var DEV_DEFAULT_CODE =
 
 // ── 掛接表工具 ────────────────────────────────────────────────
 // 舊格式（值是字串）→ 新格式（物件），讓舊的 localStorage / events.js 不會壞
+function _isValidIcon(icon) {
+  return typeof icon === "string" && icon.indexOf("assets/") === 0;
+}
+
 function _normalizeTileEvents() {
   for (var k in tileEvents) {
     var v = tileEvents[k];
     if (typeof v === "string") {
       tileEvents[k] = { fn: v, icon: DEV_EVENT_DEFAULT_ICON, color: DEV_EVENT_DEFAULT_COLOR };
     } else if (v && typeof v === "object") {
-      if (!v.icon)  v.icon  = DEV_EVENT_DEFAULT_ICON;
+      // 若 icon 不是有效的圖片路徑（例如舊版 emoji），清空為預設
+      if (!_isValidIcon(v.icon)) v.icon = DEV_EVENT_DEFAULT_ICON;
       if (!v.color) v.color = DEV_EVENT_DEFAULT_COLOR;
     }
   }
@@ -301,6 +306,18 @@ function _updateDevPosition() {
   if (el) el.textContent = "目前位置：(" + player.x + ", " + player.y + ")";
 }
 
+function updateIconPreview() {
+  var sel  = document.getElementById("dev-event-icon");
+  var prev = document.getElementById("dev-event-icon-preview");
+  if (!sel || !prev) return;
+  if (sel.value) {
+    prev.src = sel.value;
+    prev.style.display = "inline";
+  } else {
+    prev.style.display = "none";
+  }
+}
+
 function _readEventStyleInputs() {
   var iconEl  = document.getElementById("dev-event-icon");
   var colorEl = document.getElementById("dev-event-color");
@@ -378,7 +395,12 @@ function _renderAttachList() {
     var swatch = document.createElement("span");
     swatch.className = "dev-attach-swatch";
     swatch.style.background = (entry && entry.color) || DEV_EVENT_DEFAULT_COLOR;
-    swatch.textContent = (entry && entry.icon) || "";
+    if (entry && _isValidIcon(entry.icon)) {
+      var swImg = document.createElement("img");
+      swImg.src = entry.icon; swImg.alt = "";
+      swImg.style.cssText = "width:20px;height:20px;object-fit:contain;";
+      swatch.appendChild(swImg);
+    }
 
     var label = document.createElement("span");
     label.className = "dev-attach-label";
@@ -403,7 +425,7 @@ function _renderAttachList() {
 // ── 快速加入：傳送門 / 寶箱 / 商店（用事件實作）────────────────
 var DEV_QUICK_TEMPLATES = {
   portal: {
-    label: "傳送門", icon: "⚡", color: "#c05010",
+    label: "傳送門", icon: "assets/picture/傳送門.png", color: "#c05010",
     fns: ["onPortal"],
     code: function(n) {
       return [
@@ -416,7 +438,7 @@ var DEV_QUICK_TEMPLATES = {
     }
   },
   chest: {
-    label: "寶箱", icon: "📦", color: "#c89010",
+    label: "寶箱", icon: "assets/picture/寶箱.png", color: "#c89010",
     fns: ["onChest"],
     code: function(n) {
       return [
@@ -429,7 +451,7 @@ var DEV_QUICK_TEMPLATES = {
     }
   },
   shop: {
-    label: "商店", icon: "🛒", color: "#287840",
+    label: "商店", icon: "assets/picture/商店.png", color: "#287840",
     fns: ["onShop", "buyPotion"],
     code: function(n) {
       return [
@@ -480,7 +502,7 @@ function quickAddEvent(type) {
   // 3. 用範本預設的圖示與顏色，掛接在目前位置（自動覆蓋地塊）
   var iconEl  = document.getElementById("dev-event-icon");
   var colorEl = document.getElementById("dev-event-color");
-  if (iconEl)  iconEl.value  = tpl.icon;
+  if (iconEl)  { iconEl.value = tpl.icon; updateIconPreview(); }
   if (colorEl) colorEl.value = tpl.color;
   var mainFn = tpl.fns[0] + n;
   _attachAt(player.x, player.y, mainFn, tpl.icon, tpl.color);
@@ -631,7 +653,12 @@ function _renderDevMapGrid() {
       } else if (evEntry) {
         // 事件地塊由「事件程式碼」分頁管理，這裡顯示但照樣可以覆蓋畫格
         cell.style.background = evEntry.color || DEV_EVENT_DEFAULT_COLOR;
-        cell.textContent = evEntry.icon || "";
+        if (_isValidIcon(evEntry.icon)) {
+          var cImg = document.createElement("img");
+          cImg.src = evEntry.icon; cImg.alt = "";
+          cImg.style.cssText = "width:16px;height:16px;object-fit:contain;";
+          cell.appendChild(cImg);
+        }
         cell.title = "事件：" + (evEntry.fn || evEntry);
       } else {
         cell.style.background = _devMapToolColor(devMapGrid[y][x]);

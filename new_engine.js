@@ -1413,10 +1413,9 @@ function applyTileStyle(tile, tileType, x, y) {
     if (meta && typeof meta === "object") {
       if (meta.color) tile.style.background = meta.color;
       if (meta.icon) {
-        var iconSpan = document.createElement("span");
-        iconSpan.className = "tile-emoji";
-        iconSpan.textContent = meta.icon;
-        tile.appendChild(iconSpan);
+        var iconImg = document.createElement("img");
+        iconImg.src = meta.icon; iconImg.alt = ""; iconImg.className = "sprite";
+        tile.appendChild(iconImg);
       }
     }
     return;

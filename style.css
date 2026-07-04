@@ -478,7 +478,8 @@ body {
 .tile--shop,
 .tile--minigame,
 .tile--door,
-.tile--boss {
+.tile--boss,
+.tile--event {
   box-shadow: inset 0 0 0 4px rgba(6, 10, 21, 0.75);
 }
 
@@ -1843,13 +1844,9 @@ body {
   resize: none; outline: none;
 }
 
-/* 事件地塊：底色與圖示由學員的 tileEvents 設定（inline style），這裡只給預設 */
+/* 事件地塊：底色由學員的 tileEvents 設定（inline style），這裡只給預設 */
 .tile--event {
   background: #5a3890;
-}
-.tile--event .tile-emoji {
-  font-size: 26px;
-  text-shadow: 0 0 4px #000;
 }
 
 /* ── 自訂事件面板（game.panel = "..."）─────────────────────── */

@@ -372,16 +372,42 @@
             <button class="btn btn-dev-attach" onclick="attachEventHere()">掛接在目前位置</button>
           </div>
           <div id="dev-style-controls">
-            <label>圖示 <input id="dev-event-icon" maxlength="4" value="❗"></label>
+            <label>圖示
+              <select id="dev-event-icon" onchange="updateIconPreview()">
+                <option value="">（無）</option>
+                <option value="assets/picture/傳送門.png">傳送門</option>
+                <option value="assets/picture/寶箱.png">寶箱</option>
+                <option value="assets/picture/商店.png">商店</option>
+                <option value="assets/picture/門鎖.png">門鎖</option>
+                <option value="assets/picture/遠古圖騰.png">遠古圖騰</option>
+                <option value="assets/picture/玩家.png">玩家</option>
+                <option value="assets/picture/哥布林.png">哥布林</option>
+                <option value="assets/picture/史萊姆.png">史萊姆</option>
+                <option value="assets/picture/弓箭手.png">弓箭手</option>
+                <option value="assets/picture/惡魔蝙蝠.png">惡魔蝙蝠</option>
+                <option value="assets/picture/死靈法師.png">死靈法師</option>
+                <option value="assets/picture/法師.png">法師</option>
+                <option value="assets/picture/泥巴怪.png">泥巴怪</option>
+                <option value="assets/picture/狼人.png">狼人</option>
+                <option value="assets/picture/眼球怪.png">眼球怪</option>
+                <option value="assets/picture/聖騎士.png">聖騎士</option>
+                <option value="assets/picture/冥界雙衛.png">冥界雙衛</option>
+                <option value="assets/picture/骷髏騎士.png">骷髏騎士</option>
+                <option value="assets/picture/魔王小兵.png">魔王小兵</option>
+                <option value="assets/picture/黑暗巨龍.png">黑暗巨龍</option>
+                <option value="assets/picture/小遊戲靶.png">小遊戲靶</option>
+              </select>
+              <img id="dev-event-icon-preview" src="" alt="" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;display:none;margin-left:4px;">
+            </label>
             <label>顏色 <input id="dev-event-color" type="color" value="#5a3890"></label>
           </div>
           <div class="dev-panel-hint">掛接後該格會變成事件地塊（覆蓋原本的地塊）</div>
 
           <div class="dev-panel-subtitle">快速加入</div>
           <div id="dev-quick-add">
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('portal')">⚡ 傳送門</button>
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('chest')">📦 寶箱</button>
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('shop')">🛒 商店</button>
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('portal')">傳送門</button>
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('chest')">寶箱</button>
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('shop')">商店</button>
           </div>
           <div class="dev-panel-hint">自動加入範本程式碼，並掛接在目前位置</div>
 
