@@ -20,5 +20,6 @@ var tileDefs = {
   13: { name: "商店",     color: "#287840", icon: "assets/picture/商店.png",     event: "onShop" },
   14: { name: "上鎖的門", color: "#604898", icon: "assets/picture/門鎖.png",     event: "onLock" },
   15: { name: "小遊戲",   color: "#1878b0", icon: "assets/picture/小遊戲靶.png", event: "onMiniGame" },
-  16: { name: "嚮導",     color: "#2e8ca8", icon: "assets/picture/法師.png",     event: "onGuide" }
+  16: { name: "嚮導",     color: "#2e8ca8", icon: "assets/picture/法師.png",     event: "onGuide" },
+  101: { name: "啥子",     color: "#2e8ca8", icon: "assets/picture/法師.png",     event: "onGuide" }
 };

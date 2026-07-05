@@ -55,6 +55,17 @@ if (typeof gameEndings === "undefined") {
   var gameEndings = [];
 }
 
+// 結局同樣分兩層：
+//   _fileEndings  → endings.js 檔案內定義（面板中無法移除/編輯）
+//   _panelEndings → 面板新增的結局（存 localStorage）
+// 實際檢查的 gameEndings = 檔案層 + 面板層（依序）
+var _fileEndings  = [];
+var _panelEndings = [];
+
+function _rebuildGameEndings() {
+  gameEndings = _fileEndings.concat(_panelEndings);
+}
+
 // 編輯器的初始內容：獨立的小範例（events.js 檔案內容不會貼進來，
 // 但匯出時會自動與 events.js 整合）
 var DEV_DEFAULT_CODE =
@@ -205,7 +216,8 @@ function clearDevState() {
     localStorage.removeItem(DEV_STORE_TILES);
     localStorage.removeItem(DEV_STORE_ENDINGS);
   } catch (e) {}
-  gameEndings = [];
+  _panelEndings = [];
+  _rebuildGameEndings();
   _panelTileDefs = {};
   _rebuildTileDefs();
 
@@ -1051,22 +1063,26 @@ function _closeEndingPanel() {
 }
 
 function addGameEnding() {
-  gameEndings.push({ name: "結局 " + (gameEndings.length + 1), condition: "", html: "<h1>🏁 結局</h1>\n<p>遊戲結束了。</p>" });
+  _panelEndings.push({ name: "結局 " + (gameEndings.length + 1), condition: "", html: "<h1>🏁 結局</h1>\n<p>遊戲結束了。</p>" });
+  _rebuildGameEndings();
   _renderEndingsList();
   _renderEndingsExport();
   _saveDevEndings();
 }
 
+// index 為面板層（_panelEndings）的索引
 function removeGameEnding(index) {
-  gameEndings.splice(index, 1);
+  _panelEndings.splice(index, 1);
+  _rebuildGameEndings();
   _renderEndingsList();
   _renderEndingsExport();
   _saveDevEndings();
 }
 
 function _updateEndingField(index, field, value) {
-  if (index < 0 || index >= gameEndings.length) return;
-  gameEndings[index][field] = value;
+  if (index < 0 || index >= _panelEndings.length) return;
+  _panelEndings[index][field] = value;
+  _rebuildGameEndings();
   _saveDevEndings();
   _renderEndingsExport();
 }
@@ -1079,57 +1095,77 @@ function _renderEndingsList() {
     return;
   }
   list.innerHTML = "";
-  for (var i = 0; i < gameEndings.length; i++) {
-    var e = gameEndings[i];
+
+  // 卡片：檔案層（唯讀）在前、面板層（可編輯）在後，與檢查順序一致
+  function makeCard(e, displayNo, isFile, panelIdx) {
     var card = document.createElement("div");
     card.className = "dev-ending-card";
 
     var header = document.createElement("div");
     header.className = "dev-ending-header";
     var title = document.createElement("span");
-    title.textContent = "#" + (i + 1);
-    var removeBtn = document.createElement("button");
-    removeBtn.className = "dev-ending-remove";
-    removeBtn.textContent = "✕ 移除";
-    removeBtn.onclick = (function(idx) { return function() { removeGameEnding(idx); }; })(i);
+    title.textContent = "#" + displayNo + (e.name ? "　" + e.name : "");
     header.appendChild(title);
-    header.appendChild(removeBtn);
+    if (isFile) {
+      var badge = document.createElement("span");
+      badge.className = "dev-file-badge";
+      badge.textContent = "endings.js";
+      badge.title = "定義在 endings.js 檔案中，無法在面板中編輯或移除；要修改請直接編輯 endings.js。";
+      header.appendChild(badge);
+    } else {
+      var removeBtn = document.createElement("button");
+      removeBtn.className = "dev-ending-remove";
+      removeBtn.textContent = "✕ 移除";
+      removeBtn.onclick = function() { removeGameEnding(panelIdx); };
+      header.appendChild(removeBtn);
+    }
     card.appendChild(header);
 
-    var nameLabel = document.createElement("label");
-    nameLabel.textContent = "結局名稱";
+    function field(labelText, el) {
+      var label = document.createElement("label");
+      label.textContent = labelText;
+      card.appendChild(label);
+      card.appendChild(el);
+    }
+
     var nameInput = document.createElement("input");
     nameInput.type = "text";
     nameInput.value = e.name || "";
-    nameInput.oninput = (function(idx) { return function() { _updateEndingField(idx, "name", this.value); }; })(i);
-    card.appendChild(nameLabel);
-    card.appendChild(nameInput);
-
-    var condLabel = document.createElement("label");
-    condLabel.textContent = "觸發條件（JS 表達式，結果為 true 時觸發）";
     var condInput = document.createElement("input");
     condInput.type = "text";
     condInput.value = e.condition || "";
     condInput.placeholder = "例：game.hp <= 0 || game.money >= 100";
-    condInput.oninput = (function(idx) { return function() { _updateEndingField(idx, "condition", this.value); }; })(i);
-    card.appendChild(condLabel);
-    card.appendChild(condInput);
-
-    var htmlLabel = document.createElement("label");
-    htmlLabel.textContent = "顯示內容（HTML）";
     var htmlArea = document.createElement("textarea");
     htmlArea.spellcheck = false;
     htmlArea.value = e.html || "";
-    htmlArea.oninput = (function(idx) { return function() { _updateEndingField(idx, "html", this.value); }; })(i);
-    card.appendChild(htmlLabel);
-    card.appendChild(htmlArea);
 
-    list.appendChild(card);
+    if (isFile) {
+      nameInput.disabled = condInput.disabled = htmlArea.disabled = true;
+    } else {
+      nameInput.oninput = function() { _updateEndingField(panelIdx, "name", this.value); };
+      condInput.oninput = function() { _updateEndingField(panelIdx, "condition", this.value); };
+      htmlArea.oninput  = function() { _updateEndingField(panelIdx, "html", this.value); };
+    }
+
+    field("結局名稱", nameInput);
+    field("觸發條件（JS 表達式，結果為 true 時觸發）", condInput);
+    field("顯示內容（HTML）", htmlArea);
+
+    return card;
+  }
+
+  var no = 1;
+  for (var i = 0; i < _fileEndings.length; i++) {
+    list.appendChild(makeCard(_fileEndings[i], no++, true, -1));
+  }
+  for (var j = 0; j < _panelEndings.length; j++) {
+    list.appendChild(makeCard(_panelEndings[j], no++, false, j));
   }
 }
 
 function _buildEndingsExportCode() {
-  var header = "// ==== 結局程式碼（把這整段貼到 endings.js，取代原本的 var gameEndings）====";
+  // 匯出＝endings.js 原有結局＋面板新增結局整合（gameEndings 即為兩層合併）
+  var header = "// ==== 結局程式碼（已整合 endings.js 原有結局與面板新增結局，貼到 endings.js 取代 var gameEndings）====";
   if (gameEndings.length === 0) return header + "\n// 沒有設定結局\nvar gameEndings = [];";
   var lines = [header, "var gameEndings = ["];
   for (var i = 0; i < gameEndings.length; i++) {
@@ -1155,19 +1191,29 @@ function copyEndingsExportCode() {
 
 function _saveDevEndings() {
   try {
-    localStorage.setItem(DEV_STORE_ENDINGS, JSON.stringify(gameEndings));
+    localStorage.setItem(DEV_STORE_ENDINGS, JSON.stringify(_panelEndings));
   } catch (e) {}
 }
 
 function _loadDevEndings() {
+  // endings.js 載入的內容 = 檔案層
+  _fileEndings = JSON.parse(JSON.stringify(gameEndings));
   var saved = null;
   try { saved = localStorage.getItem(DEV_STORE_ENDINGS); } catch (e) {}
   if (saved) {
     try {
       var parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) gameEndings = parsed;
+      if (Array.isArray(parsed)) {
+        // 只還原「不等同檔案內結局」的項目（舊版曾把整份 gameEndings 存進暫存）
+        _panelEndings = parsed.filter(function(e) {
+          return !_fileEndings.some(function(f) {
+            return f.name === e.name && f.condition === e.condition && f.html === e.html;
+          });
+        });
+      }
     } catch (e) {}
   }
+  _rebuildGameEndings();
 }
 
 // ── localStorage 持久化 ───────────────────────────────────────

@@ -151,3 +151,7 @@ function onMiniGame() {
 
   render();
 }
+
+function onTest() {
+
+}
