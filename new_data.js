@@ -69,8 +69,7 @@ var shopItems = [
 
 
 
-// ── 對話文本 ────────────────────────
-// 開場對話請到 events.js 改 var introDialogue（學員自訂）
+// ── 對話文本（引擎內部使用） ────────────────────────
 var dialogues = {
   shop_first: [
     { speaker: "商人",   text: "歡迎光臨！看看有什麼需要的吧。" }

@@ -225,7 +225,6 @@
         <button id="dev-tab-btn-events" class="dev-tab-btn dev-tab-btn--active" onclick="switchDevTab('events')">🛠 事件程式碼</button>
         <button id="dev-tab-btn-map" class="dev-tab-btn" onclick="switchDevTab('map')">🗺️ 地圖編輯</button>
         <button id="dev-tab-btn-items" class="dev-tab-btn" onclick="switchDevTab('items')">🧪 物品生成器</button>
-        <button id="dev-tab-btn-talk" class="dev-tab-btn" onclick="switchDevTab('talk')">💬 對話生成器</button>
         <button id="dev-tab-btn-endings" class="dev-tab-btn" onclick="switchDevTab('endings')">🏁 結局編輯</button>
         <button class="btn btn-minimap-close" id="dev-panel-close-btn" onclick="closeDevPanel()">✕ 關閉</button>
       </div>
@@ -408,82 +407,6 @@ game.bag = [];  // 清空背包</pre>
               玩家可以在地圖背包（按 B）點「使用」，或在戰鬥中按道具按鈕使用物品，
               兩種方式都會呼叫物品的 effect 函式並消耗一個。
             </div>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- ── 分頁：對話生成器 ── -->
-      <div id="dev-tab-talk" class="dev-tab-page" style="display:none">
-
-        <!-- 左：對話編輯 -->
-        <div id="dev-talk-left">
-          <div class="dev-panel-title">💬 對話生成器</div>
-          <div class="dev-panel-hint">
-            每一句對話：<code>{ speaker: "名字", text: "台詞" }</code><br>
-            用 <code>game.talk(對話陣列)</code> 在事件裡觸發，點擊畫面前進，播完自動回到地圖。
-          </div>
-
-          <div class="dev-panel-subtitle">對話內容</div>
-          <div id="dev-talk-lines"></div>
-          <button class="btn btn-dev-apply" onclick="addTalkLine()">＋ 新增一句</button>
-
-          <div class="dev-panel-subtitle">快速範本</div>
-          <div id="dev-talk-quick-add">
-            <button class="btn dev-quick-btn" onclick="quickAddTalkTemplate('intro')">開場旁白</button>
-            <button class="btn dev-quick-btn" onclick="quickAddTalkTemplate('npc')">NPC 對話</button>
-            <button class="btn dev-quick-btn" onclick="quickAddTalkTemplate('boss')">魔王登場</button>
-          </div>
-
-          <div id="dev-talk-toolbar">
-            <button class="btn btn-dev-apply" onclick="devTalkPlay()">▶ 播放試試</button>
-            <span id="dev-talk-status"></span>
-          </div>
-        </div>
-
-        <!-- 右：匯出 + game.talk 小抄 -->
-        <div id="dev-talk-right">
-          <div class="dev-item-form">
-            <label>匯出形式
-              <select id="dev-talk-mode" onchange="_renderTalkExport()">
-                <option value="fn">事件函式（掛在地塊上）</option>
-                <option value="intro">開場對話（貼到 events.js）</option>
-              </select>
-            </label>
-            <label>函式名稱 <input id="dev-talk-fn-name" type="text" value="onTalk1" oninput="_renderTalkExport()"></label>
-          </div>
-
-          <div class="dev-panel-subtitle">
-            產生的程式碼
-            <button class="btn btn-dev-copy" onclick="copyTalkExportCode()">📋 複製</button>
-          </div>
-          <textarea id="dev-talk-export-code" readonly spellcheck="false"></textarea>
-          <button class="btn btn-dev-apply" onclick="devTalkAddToEditor()">⚡ 加進「事件程式碼」並套用</button>
-          <div class="dev-panel-hint">加入後到「事件程式碼」分頁，把函式掛接到地塊上就能觸發。</div>
-
-          <div class="dev-panel-subtitle">📖 game.talk 小抄</div>
-          <div id="dev-talk-doc">
-            <pre>// 在事件函式裡觸發對話
-game.talk([
-  { speaker: "神秘老人", text: "前面很危險啊……" },
-  { speaker: "勇者",     text: "我不怕！" }
-]);
-
-// 直接放字串 = 旁白說的
-game.talk(["風聲呼嘯而過……"]);
-
-// 第二個參數（可省略）：
-// 對話結束後接著做事
-game.talk([
-  { speaker: "旁白", text: "地面突然震動！" }
-], function() {
-  game.hp -= 10;
-  game.message = "💥 受到 10 點傷害！";
-});
-
-// 開場對話定義在 events.js 的
-// var introDialogue = [ ... ]
-// 改成 [] 就不播</pre>
           </div>
         </div>
 

@@ -15,28 +15,6 @@ var tileEvents = {};
 // 結局表：在開發面板「🏁 結局編輯」設計，匯出後貼到這裡（整段取代）
 var gameEndings = [];
 
-// 開場對話：進入遊戲時自動播放，點擊畫面前進。在陣列裡加 { speaker: "名字", text: "台詞" } 就會播，
-// 開場對話留空 [] 則直接進入地圖（可用開發面板「💬 對話生成器」產生這段程式碼）
-var introDialogue = [];
-
-// ── 範例：對話事件（用 game.talk 在任何事件裡觸發對話） ──────
-function onTalkOldMan() {
-  game.talk([
-    { speaker: "神秘老人", text: "年輕人，前面很危險啊……" },
-    { speaker: "勇者",     text: "我不怕！" }
-  ]);
-}
-
-// 對話結束後還可以接著做事（第二個參數，可省略）
-function onTalkTrap() {
-  game.talk([
-    { speaker: "旁白", text: "地面突然震動！" }
-  ], function() {
-    game.hp -= 10;
-    game.message = "💥 你受到了 10 點傷害！";
-  });
-}
-
 // ── 範例：陷阱 ──────────────────────────────────────────────
 function onTrap() {
   game.hp -= 10;

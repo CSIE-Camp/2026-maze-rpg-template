@@ -12,16 +12,6 @@
 //    game.panel = "";               // 關閉自訂面板
 //    game.setTile(4, 7, 0);         // 把 (4,7) 的牆變成空地（機關開門）
 //
-//  對話（game.talk）：播放 RPG 對話畫面，點擊前進，播完自動回到地圖
-//    game.talk([
-//      { speaker: "神秘老人", text: "年輕人，前面很危險啊……" },
-//      { speaker: "勇者",     text: "我不怕！" }
-//    ]);
-//    // 第二個參數（可省略）：對話結束後要做的事
-//    game.talk([{ speaker: "旁白", text: "地面突然震動！" }], function() {
-//      game.hp -= 10;
-//    });
-//
 //  背包（game.bag）：
 //    物品格式：{ name: "藥水", effect: onPotionHeal, desc: "可以回復生命的藥水" }
 //      name   → 物品名稱（同名會堆疊顯示）
@@ -54,39 +44,6 @@ function _gameGetTile(x, y) {
   if (y < 0 || y >= currentMap.length)    return undefined;
   if (x < 0 || x >= currentMap[y].length) return undefined;
   return currentMap[y][x];
-}
-
-// ── 對話 API ─────────────────────────────────────────────────
-// game.talk(對話陣列, 結束後callback)
-//   對話陣列每一句：{ speaker: "名字", text: "台詞" }（也可以直接放字串 = 旁白）
-//   播放中點擊畫面前進，播完回到地圖，再執行 callback（可省略）
-function _gameTalk(lines, callback) {
-  if (!Array.isArray(lines)) {
-    if (typeof showMapMessage === "function") {
-      showMapMessage('💥 game.talk：請傳入對話陣列，例如 [{ speaker: "勇者", text: "..." }]');
-    }
-    return;
-  }
-  var norm = [];
-  for (var i = 0; i < lines.length; i++) {
-    var ln = lines[i];
-    if (typeof ln === "string") {
-      norm.push({ speaker: "旁白", text: ln });
-    } else if (ln && typeof ln === "object") {
-      norm.push({ speaker: ln.speaker || "", text: ln.text || "" });
-    }
-  }
-  if (norm.length === 0) return;
-  showDialogue(norm, function() {
-    showScreen("screen-map");
-    if (typeof callback === "function") {
-      try {
-        callback();
-      } catch (e) {
-        if (typeof showMapMessage === "function") showMapMessage("💥 對話結束 callback 錯誤：" + e.message);
-      }
-    }
-  });
 }
 
 function _gameSetPanel(html) {
@@ -196,7 +153,6 @@ var game = new Proxy(_gameProxyTarget, {
       case "bag":     return _gameGetBag();
       case "setTile": return _gameSetTile;
       case "getTile": return _gameGetTile;
-      case "talk":    return _gameTalk;
     }
     return target[key];
   },

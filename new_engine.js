@@ -3532,17 +3532,8 @@ window.onload = function() {
     if (btnDev)  btnDev.style.display  = "none";
   }
   updateHUD(); renderMap(); renderBagSidebar();
-  // 開場對話：定義在 events.js 的 var introDialogue（學員自訂，空陣列 = 不播）
-  if (typeof introDialogue !== "undefined" && Array.isArray(introDialogue) &&
-      introDialogue.length > 0) {
-    showDialogue(introDialogue, function() {
-      showScreen("screen-map");
-      tryShowMazeTutorial();
-    });
-  } else {
-    showScreen("screen-map");
-    tryShowMazeTutorial();
-  }
+  showScreen("screen-map");
+  tryShowMazeTutorial();
 };
 
 
