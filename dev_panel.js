@@ -205,7 +205,7 @@ function revertLastDevCode() {
 }
 
 function clearDevState() {
-  if (!confirm("確定要清除開發面板的暫存程式碼與掛接事件嗎？\n這將恢復為 events.js 的原始內容。")) return;
+  if (!confirm("確定要清除開發面板的暫存程式碼與掛接事件嗎？\n這將還原為範例。")) return;
 
   try {
     localStorage.removeItem(DEV_STORE_CODE);
