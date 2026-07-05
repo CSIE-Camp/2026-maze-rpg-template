@@ -233,9 +233,9 @@
         <!-- 左：程式碼編輯器 -->
         <div id="dev-panel-left">
           <div class="dev-panel-title">🛠 事件程式碼</div>
+          <div class="dev-panel-hint">程式碼會在<b>關閉面板時自動套用</b>；和 events.js 檔案同名的函式會覆蓋檔案版本（關閉時會提醒）。</div>
           <textarea id="dev-code-editor" spellcheck="false"></textarea>
           <div id="dev-editor-toolbar">
-            <button class="btn btn-dev-apply" onclick="applyDevCode()">▶ 套用程式碼</button>
             <button class="btn btn-dev-revert" id="btn-dev-revert" onclick="revertLastDevCode()" style="display:none">↩️ 返回上一次套用</button>
             <button class="btn btn-dev-clear" id="btn-dev-clear" onclick="clearDevState()">🗑️ 清除暫存</button>
             <span id="dev-status"></span>
@@ -254,7 +254,7 @@
             匯出 events.js
             <button class="btn btn-dev-copy" onclick="copyExportCode()">📋 複製</button>
           </div>
-          <div class="dev-panel-hint">把下面整段貼到 <code>events.js</code>（取代全部內容），清除瀏覽器快取後程式依然保留。</div>
+          <div class="dev-panel-hint">下面已自動把 <code>events.js</code> 原有內容與面板內容整合（同名函式以面板版本為準）。整段貼到 <code>events.js</code> 取代全部內容，清除瀏覽器快取後程式依然保留。</div>
           <textarea id="dev-export-code" readonly spellcheck="false"></textarea>
         </div>
 

@@ -21,18 +21,12 @@ var DEV_STORE_MAP     = "hackathon_dev_map";
 var DEV_STORE_ENDINGS = "hackathon_dev_endings";
 var DEV_STORE_TILES   = "hackathon_dev_tiles";
 
-// 紀錄所有內建的 window 函式，用來區分後載入的 events.js 裡宣告的學員函式
-var builtinFunctions = new Set();
-for (var key in window) {
-  try {
-    if (typeof window[key] === "function") {
-      builtinFunctions.add(key);
-    }
-  } catch (e) {}
-}
+// events.js 檔案的原始函式碼（由 fetch 取得；用於匯出整合與函式清單）
+var _eventsFileCode = "";
 
-// events.js 宣告的學員函式集合
-var eventsJsFunctions = new Set();
+function _fileFnNames() {
+  return _scanFunctionNames(_eventsFileCode);
+}
 
 // 地塊定義分兩層：
 //   _fileTileDefs  → tile.js 檔案內定義（面板中無法覆蓋/移除，檔案更新永遠生效）
@@ -51,9 +45,6 @@ function _rebuildTileDefs() {
 var currentlyRunningCode = "";
 var lastAppliedCode = null;
 
-// events.js 的初始程式碼（去掉標頭註解後）
-var _initialEventsCode = DEV_DEFAULT_CODE;
-
 // 事件地塊定義表（tile.js 提供；此處保底宣告）
 if (typeof tileDefs === "undefined") {
   var tileDefs = {};
@@ -64,8 +55,10 @@ if (typeof gameEndings === "undefined") {
   var gameEndings = [];
 }
 
+// 編輯器的初始內容：獨立的小範例（events.js 檔案內容不會貼進來，
+// 但匯出時會自動與 events.js 整合）
 var DEV_DEFAULT_CODE =
-  '// 在這裡寫你的事件函式，按「套用程式碼」後生效\n' +
+  '// 在這裡寫你的事件函式，關閉面板時自動套用\n' +
   '// 範例：\n' +
   'function onTrap() {\n' +
   '  game.hp -= 10;\n' +
@@ -88,9 +81,36 @@ function openDevPanel() {
   _renderTileExport();
 }
 
+// 上次提醒過的覆蓋函式清單（相同就不重複彈窗）
+var _lastOverrideAlert = "";
+
 function closeDevPanel() {
   var overlay = document.getElementById("dev-panel-overlay");
   if (overlay) overlay.style.display = "none";
+
+  // 關閉面板時自動套用程式碼
+  var err = applyDevCode();
+  if (err) {
+    alert("⚠️ 事件程式碼有錯誤，尚未生效：\n\n" + err);
+    return;
+  }
+  // 提醒使用者哪些函式覆蓋了 events.js 檔案內的同名函式
+  var dups = _getOverriddenFns();
+  var key = dups.join("、");
+  if (dups.length > 0 && key !== _lastOverrideAlert) {
+    alert("提醒：開發面板中的以下函式，覆蓋了 events.js 檔案內的同名函式：\n\n" + key);
+  }
+  _lastOverrideAlert = key;
+}
+
+// 面板程式碼中與 events.js 檔案同名的函式
+function _getOverriddenFns() {
+  var editor = document.getElementById("dev-code-editor");
+  if (!editor) return [];
+  var fileNames = _fileFnNames();
+  return _scanFunctionNames(editor.value).filter(function(n) {
+    return fileNames.indexOf(n) !== -1;
+  });
 }
 
 function isDevPanelOpen() {
@@ -137,11 +157,13 @@ function _detectEventsJsFunctions() {
 }
 
 function _cleanupDeletedFunctions(oldCode, newCode) {
-  var oldFuncs = _scanFunctionNames(oldCode);
-  var newFuncs = _scanFunctionNames(newCode);
+  var oldFuncs  = _scanFunctionNames(oldCode);
+  var newFuncs  = _scanFunctionNames(newCode);
+  var fileFuncs = _fileFnNames();
   for (var i = 0; i < oldFuncs.length; i++) {
     var fnName = oldFuncs[i];
-    if (newFuncs.indexOf(fnName) === -1) {
+    // 檔案內的函式不刪（重新 eval 檔案碼會恢復原版）
+    if (newFuncs.indexOf(fnName) === -1 && fileFuncs.indexOf(fnName) === -1) {
       try {
         delete window[fnName];
       } catch (e) {
@@ -152,12 +174,9 @@ function _cleanupDeletedFunctions(oldCode, newCode) {
 }
 
 function _getDuplicateWarning(code) {
-  var duplicates = [];
-  var panelFuncs = _scanFunctionNames(code);
-  panelFuncs.forEach(function(name) {
-    if (eventsJsFunctions.has(name)) {
-      duplicates.push(name);
-    }
+  var fileNames = _fileFnNames();
+  var duplicates = _scanFunctionNames(code).filter(function(name) {
+    return fileNames.indexOf(name) !== -1;
   });
   if (duplicates.length > 0) {
     return " (⚠️ 覆蓋 events.js 同名函式: " + duplicates.join(", ") + ")";
@@ -179,7 +198,7 @@ function revertLastDevCode() {
 }
 
 function clearDevState() {
-  if (!confirm("確定要清除開發面板的暫存程式碼、自訂地塊與結局嗎？\n這將還原為 events.js / tile.js / endings.js 的內容。")) return;
+  if (!confirm("確定要清除開發面板的暫存程式碼、自訂地塊與結局嗎？\n檔案（events.js / tile.js / endings.js）內的內容會保留。")) return;
 
   try {
     localStorage.removeItem(DEV_STORE_CODE);
@@ -191,20 +210,23 @@ function clearDevState() {
   _rebuildTileDefs();
 
   var editor = document.getElementById("dev-code-editor");
-  if (editor) editor.value = _initialEventsCode;
+  if (editor) editor.value = DEV_DEFAULT_CODE;
 
-  _cleanupDeletedFunctions(currentlyRunningCode, _initialEventsCode);
-  currentlyRunningCode = _initialEventsCode;
+  _cleanupDeletedFunctions(currentlyRunningCode, DEV_DEFAULT_CODE);
+  currentlyRunningCode = DEV_DEFAULT_CODE;
   lastAppliedCode = null;
+  _lastOverrideAlert = "";
 
   var revertBtn = document.getElementById("btn-dev-revert");
   if (revertBtn) revertBtn.style.display = "none";
 
   try {
+    // 檔案內函式恢復原版，再套用預設範例
+    if (_eventsFileCode) (0, eval)(_eventsFileCode);
     (0, eval)(currentlyRunningCode);
   } catch (e) {}
 
-  _setDevStatus("🗑️ 已清除暫存，已還原為 events.js / tile.js 內容", false);
+  _setDevStatus("🗑️ 已清除暫存，檔案內容（events.js / tile.js）保留", false);
   _renderExport();
   _rebuildMapPalette();
   _refreshTileFnSelect();
@@ -213,15 +235,19 @@ function clearDevState() {
   renderMap();
 }
 
-// ── 套用程式碼 ────────────────────────────────────────────────
+// ── 套用程式碼（關閉面板時自動執行；成功回傳 null，失敗回傳錯誤訊息）──
 function applyDevCode() {
   var code = document.getElementById("dev-code-editor").value;
   try {
-    (0, eval)(code);  // 間接 eval：在全域作用域執行，函式才掛得到 window 上
-
-    // 清除已刪除的函式，並儲存上一次成功套用的狀態
+    // 先清掉面板已刪除的函式，再依「檔案 → 面板」順序重新執行：
+    // 面板同名函式覆蓋檔案版；面板刪掉覆蓋函式後，檔案原版會恢復。
     if (currentlyRunningCode !== code) {
       _cleanupDeletedFunctions(currentlyRunningCode, code);
+    }
+    if (_eventsFileCode) (0, eval)(_eventsFileCode);
+    (0, eval)(code);  // 間接 eval：在全域作用域執行，函式才掛得到 window 上
+
+    if (currentlyRunningCode !== code) {
       lastAppliedCode = currentlyRunningCode;
       currentlyRunningCode = code;
 
@@ -230,10 +256,10 @@ function applyDevCode() {
     }
 
     var dupWarning = _getDuplicateWarning(code);
-    _setDevStatus("✅ 已套用！共 " + _scanFunctionNames(code).length + " 個函式" + dupWarning, false);
+    _setDevStatus("✅ 已套用！面板共 " + _scanFunctionNames(code).length + " 個函式" + dupWarning, false);
   } catch (e) {
     _setDevStatus("❌ " + e.message, true);
-    return;
+    return e.message;
   }
   _refreshItemFnSelect();
   _refreshTileFnSelect();
@@ -241,6 +267,7 @@ function applyDevCode() {
   _renderExport();
   _saveDevState();
   renderMap();
+  return null;
 }
 
 function _setDevStatus(msg, isError) {
@@ -256,13 +283,15 @@ function _scanFunctionNames(code) {
   return names;
 }
 
-// 把編輯器裡宣告的函式列進下拉選單（供事件地塊 / 物品生成器選用）
+// 把可用的事件函式列進下拉選單（供事件地塊 / 物品生成器選用）：
+// 面板編輯器內宣告的函式＋只存在於 events.js 檔案的函式
 function _fillFnSelect(sel, emptyLabel) {
   if (!sel) return;
   var editor = document.getElementById("dev-code-editor");
   if (!editor) return;
   var prev  = sel.value;
   var names = _scanFunctionNames(editor.value);
+  var fileOnly = _fileFnNames().filter(function(n) { return names.indexOf(n) === -1; });
   sel.innerHTML = "";
   var none = document.createElement("option");
   none.value = ""; none.textContent = emptyLabel;
@@ -272,16 +301,50 @@ function _fillFnSelect(sel, emptyLabel) {
     o.value = names[i]; o.textContent = names[i];
     sel.appendChild(o);
   }
-  if (names.indexOf(prev) !== -1) sel.value = prev;
+  for (var j = 0; j < fileOnly.length; j++) {
+    var fo = document.createElement("option");
+    fo.value = fileOnly[j]; fo.textContent = fileOnly[j] + "（events.js）";
+    sel.appendChild(fo);
+  }
+  if (names.indexOf(prev) !== -1 || fileOnly.indexOf(prev) !== -1) sel.value = prev;
 }
 
 // ── 匯出 events.js ────────────────────────────────────────────
+// 從程式碼中移除指定函式（用大括號配對找函式結尾）。
+// 注意：若函式內的字串含有不成對的大括號，配對會失準——教學用途可接受。
+function _removeFunctionFromCode(code, fnName) {
+  var re = new RegExp("(^|\\n)[ \\t]*function\\s+" + fnName + "\\s*\\(");
+  var m = re.exec(code);
+  if (!m) return code;
+  var start = m.index + m[1].length;
+  var i = code.indexOf("{", start);
+  if (i === -1) return code;
+  var depth = 0;
+  for (; i < code.length; i++) {
+    if (code[i] === "{") depth++;
+    else if (code[i] === "}") { depth--; if (depth === 0) { i++; break; } }
+  }
+  return (code.slice(0, start) + code.slice(i)).replace(/\n{3,}/g, "\n\n");
+}
+
+// 匯出 = events.js 檔案內容（去掉被面板覆蓋的函式）＋ 面板程式碼
 function _buildExportCode() {
-  return [
-    "// ==== events.js（把這整段複製，取代 events.js 的全部內容）====",
-    "",
-    document.getElementById("dev-code-editor").value
-  ].join("\n");
+  var panelCode = document.getElementById("dev-code-editor").value;
+  var fileCode  = _eventsFileCode;
+  _getOverriddenFns().forEach(function(n) {
+    fileCode = _removeFunctionFromCode(fileCode, n);
+  });
+  var lines = [
+    "// ==== events.js（已整合 events.js 原有內容與開發面板內容，取代 events.js 全部內容）====",
+    ""
+  ];
+  if (fileCode.trim()) {
+    lines.push(fileCode.trim());
+    lines.push("");
+  }
+  lines.push("// ── 開發面板新增／覆蓋的函式 ──────────────────────────────");
+  lines.push(panelCode);
+  return lines.join("\n");
 }
 
 function _renderExport() {
@@ -1147,11 +1210,13 @@ function _loadDevState() {
   try {
     code = localStorage.getItem(DEV_STORE_CODE);
   } catch (e) {}
-  editor.value = (code !== null && code !== "") ? code : _initialEventsCode;
+  // 舊版暫存過整份 events.js 內容：視為未編輯，改用預設範例
+  if (code !== null && code.trim() === _eventsFileCode.trim()) code = null;
+  editor.value = (code !== null && code !== "") ? code : DEV_DEFAULT_CODE;
   currentlyRunningCode = editor.value;
 
   try {
-    (0, eval)(editor.value);  // 自動套用上次的程式碼
+    (0, eval)(editor.value);  // 自動套用上次的程式碼（events.js 已由 script 標籤載入）
     if (code !== null && code !== "") {
       var dupWarning = _getDuplicateWarning(editor.value);
       _setDevStatus("⚠️ 目前執行的是開發面板暫存的程式碼" + dupWarning, false);
@@ -1195,7 +1260,6 @@ document.addEventListener("DOMContentLoaded", function() {
     document.addEventListener("mouseup", function() { _devPainting = false; });
   }
 
-  _detectEventsJsFunctions();
   _loadDevTiles();
   _loadDevMap();
 
@@ -1204,7 +1268,7 @@ document.addEventListener("DOMContentLoaded", function() {
     .then(function(r) { return r.text(); })
     .then(function(text) {
       var code = _stripVarDeclarations(text);
-      if (code) _initialEventsCode = code;
+      if (code) _eventsFileCode = code;
     })
     .catch(function() {})
     .then(function() {
