@@ -38,6 +38,9 @@ var initialTileEvents = {};
 var currentlyRunningCode = "";
 var lastAppliedCode = null;
 
+// events.js 中扣除 var tileEvents / var gameEndings 宣告後的純函式程式碼
+var _initialEventsCode = DEV_DEFAULT_CODE;
+
 // 掛接表："x,y" → { fn: 函式名稱, icon: 圖示, color: 顏色 }
 // （存名字字串而非函式參照，重新套用程式碼後自動綁到新版函式）
 if (typeof tileEvents === "undefined") {
@@ -148,6 +151,16 @@ function switchDevTab(name) {
 }
 
 // ── 輔助生命週期與 QoL 函式 ────────────────────────────────────
+function _stripVarDeclarations(src) {
+  return src
+    .replace(/^\s*var\s+tileEvents\s*=[\s\S]*?;\s*$/m, "")
+    .replace(/^\s*var\s+gameEndings\s*=[\s\S]*?;\s*$/m, "")
+    .replace(/^\s*\/\/\s*掛接表.*$/m, "")
+    .replace(/^\s*\/\/\s*==+[\s\S]*?==+\s*$/gm, "")
+    .replace(/^\n{3,}/gm, "\n\n")
+    .trim();
+}
+
 function _detectEventsJsFunctions() {
   for (var key in window) {
     try {
@@ -205,7 +218,7 @@ function revertLastDevCode() {
 }
 
 function clearDevState() {
-  if (!confirm("確定要清除開發面板的暫存程式碼與掛接事件嗎？\n這將還原為範例。")) return;
+  if (!confirm("確定要清除開發面板的暫存程式碼與掛接事件嗎？\n這將還原為 events.js 的內容。")) return;
 
   try {
     localStorage.removeItem(DEV_STORE_CODE);
@@ -215,7 +228,7 @@ function clearDevState() {
   gameEndings = [];
 
   var editor = document.getElementById("dev-code-editor");
-  if (editor) editor.value = DEV_DEFAULT_CODE;
+  if (editor) editor.value = _initialEventsCode;
 
   // 把目前掛接表的事件地塊還原為空地，再換回 events.js 的初始掛接表
   for (var k in tileEvents) {
@@ -229,8 +242,8 @@ function clearDevState() {
   tileEvents = JSON.parse(JSON.stringify(initialTileEvents));
   syncEventTiles();
 
-  _cleanupDeletedFunctions(currentlyRunningCode, DEV_DEFAULT_CODE);
-  currentlyRunningCode = DEV_DEFAULT_CODE;
+  _cleanupDeletedFunctions(currentlyRunningCode, _initialEventsCode);
+  currentlyRunningCode = _initialEventsCode;
   lastAppliedCode = null;
 
   var revertBtn = document.getElementById("btn-dev-revert");
@@ -240,7 +253,7 @@ function clearDevState() {
     (0, eval)(currentlyRunningCode);
   } catch (e) {}
 
-  _setDevStatus("🗑️ 已清除暫存，已載入範例設定", false);
+  _setDevStatus("🗑️ 已清除暫存，已還原為 events.js 內容", false);
   _refreshFnSelect();
   _renderAttachList();
   _renderExport();
@@ -930,7 +943,7 @@ function _loadDevState() {
     code   = localStorage.getItem(DEV_STORE_CODE);
     events = localStorage.getItem(DEV_STORE_EVENTS);
   } catch (e) {}
-  editor.value = (code !== null && code !== "") ? code : DEV_DEFAULT_CODE;
+  editor.value = (code !== null && code !== "") ? code : _initialEventsCode;
   currentlyRunningCode = editor.value;
 
   if (events) {
@@ -994,6 +1007,17 @@ document.addEventListener("DOMContentLoaded", function() {
 
   _detectEventsJsFunctions();
   _loadDevMap();
-  _loadDevState();
-  _loadDevEndings();
+
+  // 從 events.js 抓取原始函式碼（去掉 var tileEvents 等宣告），再載入 dev 狀態
+  fetch("events.js?v=" + Date.now(), { cache: "no-store" })
+    .then(function(r) { return r.text(); })
+    .then(function(text) {
+      var code = _stripVarDeclarations(text);
+      if (code) _initialEventsCode = code;
+    })
+    .catch(function() {})
+    .then(function() {
+      _loadDevState();
+      _loadDevEndings();
+    });
 });
