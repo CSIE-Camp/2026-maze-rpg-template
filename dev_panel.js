@@ -38,9 +38,6 @@ var initialTileEvents = {};
 var currentlyRunningCode = "";
 var lastAppliedCode = null;
 
-// 原始 events.js 的程式碼（用於清除暫存時還原）
-var initialDevCode = DEV_DEFAULT_CODE;
-
 // 掛接表："x,y" → { fn: 函式名稱, icon: 圖示, color: 顏色 }
 // （存名字字串而非函式參照，重新套用程式碼後自動綁到新版函式）
 if (typeof tileEvents === "undefined") {
@@ -151,8 +148,6 @@ function switchDevTab(name) {
 }
 
 // ── 輔助生命週期與 QoL 函式 ────────────────────────────────────
-var _fetchEventsJsPromise = null;
-
 function _detectEventsJsFunctions() {
   for (var key in window) {
     try {
@@ -165,12 +160,6 @@ function _detectEventsJsFunctions() {
     _normalizeTileEvents();
     initialTileEvents = JSON.parse(JSON.stringify(tileEvents));
   }
-
-  // 從 events.js 檔案抓取原始內容，用於清除暫存時還原
-  _fetchEventsJsPromise = fetch("events.js?v=" + Date.now(), { cache: "no-store" })
-    .then(function(r) { return r.text(); })
-    .then(function(text) { initialDevCode = text; })
-    .catch(function(e) { /* 若抓不到就保留預設 */ });
 }
 
 function _cleanupDeletedFunctions(oldCode, newCode) {
@@ -226,7 +215,7 @@ function clearDevState() {
   gameEndings = [];
 
   var editor = document.getElementById("dev-code-editor");
-  if (editor) editor.value = initialDevCode;
+  if (editor) editor.value = DEV_DEFAULT_CODE;
 
   // 把目前掛接表的事件地塊還原為空地，再換回 events.js 的初始掛接表
   for (var k in tileEvents) {
@@ -240,8 +229,8 @@ function clearDevState() {
   tileEvents = JSON.parse(JSON.stringify(initialTileEvents));
   syncEventTiles();
 
-  _cleanupDeletedFunctions(currentlyRunningCode, initialDevCode);
-  currentlyRunningCode = initialDevCode;
+  _cleanupDeletedFunctions(currentlyRunningCode, DEV_DEFAULT_CODE);
+  currentlyRunningCode = DEV_DEFAULT_CODE;
   lastAppliedCode = null;
 
   var revertBtn = document.getElementById("btn-dev-revert");
@@ -941,7 +930,7 @@ function _loadDevState() {
     code   = localStorage.getItem(DEV_STORE_CODE);
     events = localStorage.getItem(DEV_STORE_EVENTS);
   } catch (e) {}
-  editor.value = (code !== null && code !== "") ? code : initialDevCode;
+  editor.value = (code !== null && code !== "") ? code : DEV_DEFAULT_CODE;
   currentlyRunningCode = editor.value;
 
   if (events) {
@@ -1005,10 +994,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
   _detectEventsJsFunctions();
   _loadDevMap();
-
-  // 等待 events.js 抓取完成後才載入 dev 狀態
-  Promise.resolve(_fetchEventsJsPromise).then(function() {
-    _loadDevState();
-    _loadDevEndings();
-  });
+  _loadDevState();
+  _loadDevEndings();
 });
