@@ -1907,6 +1907,13 @@ body {
 #dev-tab-endings { gap: 20px; }
 #dev-endings-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 #dev-endings-right { width: 340px; display: flex; flex-direction: column; gap: 6px; }
+#dev-endings-export-code {
+  flex: 1; min-height: 150px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
 .dev-ending-card {
   background: #0c1628; border: 1px solid #1e3560; border-radius: 8px;
   padding: 12px; display: flex; flex-direction: column; gap: 8px;

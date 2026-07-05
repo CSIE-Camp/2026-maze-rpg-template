@@ -160,6 +160,7 @@ function _stripVarDeclarations(src) {
     .replace(/^\s*var\s+tileEvents\s*=[\s\S]*?;\s*$/m, "")
     .replace(/^\s*var\s+gameEndings\s*=[\s\S]*?;\s*$/m, "")
     .replace(/^\s*\/\/\s*掛接表.*$/m, "")
+    .replace(/^\s*\/\/\s*結局表.*$/m, "")
     .replace(/^\s*\/\/\s*==+[\s\S]*?==+\s*$/gm, "")
     .replace(/^\n{3,}/gm, "\n\n")
     .trim();
@@ -1216,8 +1217,9 @@ function _renderEndingsList() {
 }
 
 function _buildEndingsExportCode() {
-  if (gameEndings.length === 0) return "// 沒有設定結局\nvar gameEndings = [];";
-  var lines = ["var gameEndings = ["];
+  var header = "// ==== 結局程式碼（把這整段貼到 events.js，取代原本的 var gameEndings）====";
+  if (gameEndings.length === 0) return header + "\n// 沒有設定結局\nvar gameEndings = [];";
+  var lines = [header, "var gameEndings = ["];
   for (var i = 0; i < gameEndings.length; i++) {
     var e = gameEndings[i];
     lines.push("  {");
