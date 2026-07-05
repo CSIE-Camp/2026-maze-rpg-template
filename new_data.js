@@ -47,12 +47,23 @@ var chestRewards = [
 
 
 // ── 商店道具 ──────────────────────────────────────────────────
+// 物品格式：{ name, price, effect: 函式, desc, isConsumable }
+//   effect       → 一個「函式」，效果發動時被呼叫（用 game 改變遊戲）
+//   isConsumable → false：購買後立即呼叫 effect
+//                  true ：購買後放進背包（game.bag），之後使用時才呼叫 effect
+
+function onShopAtkUp()  { game.atk += 3; }
+function onShopDefUp()  { game.def += 3; }
+function onShopMaxHpUp(){ game.maxHp += 20; game.hp += 20; }
+function onShopHeal30() { game.hp += 30; }
+function onShopHeal80() { game.hp += 80; }
+
 var shopItems = [
-  { name: "攻擊強化藥水", price: 25, effect: { atk:   3 }, desc: "攻擊力永久 +3",       isConsumable: false },
-  { name: "防禦強化藥水", price: 15, effect: { def:   3 }, desc: "防禦力永久 +3",       isConsumable: false },
-  { name: "生命強化藥水", price: 30, effect: { maxHp: 20}, desc: "最大 HP 永久 +20",    isConsumable: false },
-  { name: "血量恢復藥水", price: 10, effect: { hp:   30 }, desc: "立即回復 30 HP",      isConsumable: false },
-  { name: "大恢復藥水",   price: 25, effect: { hp:   80 }, desc: "立即回復 80 HP",      isConsumable: false },
+  { name: "攻擊強化藥水", price: 25, effect: onShopAtkUp,   desc: "攻擊力永久 +3",    isConsumable: false },
+  { name: "防禦強化藥水", price: 15, effect: onShopDefUp,   desc: "防禦力永久 +3",    isConsumable: false },
+  { name: "生命強化藥水", price: 30, effect: onShopMaxHpUp, desc: "最大 HP 永久 +20", isConsumable: false },
+  { name: "血量恢復藥水", price: 10, effect: onShopHeal30,  desc: "立即回復 30 HP",   isConsumable: false },
+  { name: "大恢復藥水",   price: 25, effect: onShopHeal80,  desc: "立即回復 80 HP",   isConsumable: false },
 ];
 
 

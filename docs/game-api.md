@@ -77,6 +77,66 @@ game.setTile(x, y, 1)       // 把 (x, y) 改為牆壁（代碼 1）
 
 ---
 
+## 背包（game.bag）
+
+物品格式：
+
+```js
+{ name: "藥水", effect: onPotionHeal, desc: "可以回復生命的藥水" }
+```
+
+`effect` 是一個**函式**（填函式名稱，不加括號！），物品被使用時會被呼叫。
+
+`game.bag` 就是一個**真的 JS 陣列**——沒有任何特殊方法，
+所有操作都用你學過的原生陣列語法，修改後背包畫面會自動更新：
+
+```js
+// 1. 先寫效果函式
+function onPotionHeal() {
+  game.hp += 30;
+  game.message = "🧪 回復 30 HP！";
+}
+
+// 2. 把物品放進背包（例如在寶箱事件裡）：push
+game.bag.push({ name: "藥水", effect: onPotionHeal, desc: "可以回復生命的藥水" });
+```
+
+| 想做的事 | 原生陣列寫法 |
+|------|------|
+| 加入一個物品 | `game.bag.push({ name, effect, desc })` |
+| 物品總數 | `game.bag.length` |
+| 第一個物品的名稱 | `game.bag[0].name` |
+| 有沒有鑰匙 → `true`/`false` | `game.bag.some(function(it) { return it.name === "鑰匙"; })` |
+| 有幾瓶藥水 → 數字 | `game.bag.filter(function(it) { return it.name === "藥水"; }).length` |
+| 找藥水的位置（沒有 → `-1`） | `game.bag.findIndex(function(it) { return it.name === "藥水"; })` |
+| 移除第 `i` 個物品 | `game.bag.splice(i, 1)` |
+| 清空背包 | `game.bag = []` |
+
+「使用」一個物品 = 找到 → 移除 → 呼叫 `effect()`，三步都是原生語法：
+
+```js
+// 使用一瓶藥水
+var i = game.bag.findIndex(function(it) { return it.name === "藥水"; });
+if (i !== -1) {
+  var item = game.bag[i];
+  game.bag.splice(i, 1);   // 從背包移除
+  item.effect();           // 發動效果
+}
+
+// 丟掉一瓶藥水（不發動效果）：一樣 findIndex + splice，不呼叫 effect
+
+for (var j = 0; j < game.bag.length; j++) {   // 走訪背包
+  console.log(game.bag[j].name);
+}
+```
+
+> 玩家也可以自己用物品：地圖背包（按 <kbd>B</kbd>）點「使用」，或在戰鬥中按道具按鈕。
+> 兩種方式都會呼叫 effect 函式並消耗一個。
+>
+> 開發模式（🛠）裡有「🧪 物品生成器」分頁，可以快速生成物品與效果函式。
+
+---
+
 ## 存放自訂狀態
 
 `game` 上可以自由新增屬性，跨事件共用：

@@ -437,9 +437,18 @@ body {
   background: rgba(255,255,255,0.04); border: 1px solid #1e3560;
   border-radius: 6px; padding: 6px 8px;
 }
+.bag-row-top  { display: flex; align-items: center; }
 .bag-row-name { font-size: 12px; color: #e0e8ff; font-weight: bold; }
 .bag-row-qty  { font-size: 11px; color: #ffd700; margin-left: 4px; }
 .bag-row-desc { font-size: 10px; color: #7a9ac0; display: block; margin-top: 2px; }
+.bag-row-use {
+  margin-left: auto; flex: none;
+  background: #1e3560; color: #c8d8f8;
+  border: 1px solid #2a4880; border-radius: 5px;
+  padding: 1px 8px; font-size: 10px; cursor: pointer;
+  transition: background 0.15s;
+}
+.bag-row-use:hover { background: #2a4880; }
 
 #game-board {
   display: flex;
@@ -2026,6 +2035,57 @@ body {
   font-size: 13px;
 }
 .dev-attach-label { flex: 1; }
+
+/* ── 物品生成器分頁 ───────────────────────────────────────── */
+#dev-items-left {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 380px; min-width: 280px;
+}
+#dev-items-right {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 300px; min-width: 260px;
+}
+#dev-tab-items code {
+  background: #060a14; border: 1px solid #1e3560; border-radius: 4px;
+  padding: 1px 5px; color: #c8a8f8;
+  font-family: "Consolas", "Menlo", monospace; font-size: 11px;
+}
+.dev-item-form { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #c8d8f0; }
+.dev-item-form label { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.dev-item-form input, .dev-item-form select {
+  flex: 1; min-width: 0;
+  background: #060a14; color: #d8e8ff;
+  border: 1px solid #1e3560; border-radius: 6px;
+  padding: 6px 8px; font-size: 13px; outline: none;
+}
+.dev-item-form input:focus, .dev-item-form select:focus { border-color: #5a3890; }
+#dev-item-quick-add { display: flex; gap: 8px; }
+#dev-items-toolbar { display: flex; align-items: center; gap: 12px; }
+#dev-items-status { font-size: 12px; flex: 1; }
+#dev-item-export-code {
+  height: 120px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
+#dev-items-bag-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 160px; overflow-y: auto;
+}
+.dev-bag-use {
+  background: #1565c0; color: #fff; border: none; border-radius: 6px;
+  padding: 3px 10px; font-size: 11px; cursor: pointer;
+  flex: none; margin-right: 4px;
+}
+.dev-bag-use:hover { background: #1e7be0; }
+#dev-items-doc pre {
+  background: #060a14; border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; overflow-x: auto;
+  font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.6; color: #a0b8d8;
+  white-space: pre;
+}
 
 /* ── 地圖編輯分頁 ─────────────────────────────────────────── */
 #dev-map-left {

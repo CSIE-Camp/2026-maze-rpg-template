@@ -502,9 +502,24 @@ function renderBagSidebar() {
     var row = document.createElement("div");
     row.className = "bag-row";
     var c = counts[name];
-    row.innerHTML = "<span class='bag-row-name'>" + c.item.name + "</span>" +
-                    "<span class='bag-row-qty'>× " + c.qty + "</span>" +
-                    "<span class='bag-row-desc'>" + (c.item.desc || "") + "</span>";
+
+    var top = document.createElement("div");
+    top.className = "bag-row-top";
+    top.innerHTML = "<span class='bag-row-name'>" + c.item.name + "</span>" +
+                    "<span class='bag-row-qty'>× " + c.qty + "</span>";
+
+    var useBtn = document.createElement("button");
+    useBtn.className = "bag-row-use";
+    useBtn.textContent = "使用";
+    useBtn.onclick = function() { _bagUseItemByName(name); };
+    top.appendChild(useBtn);
+
+    var desc = document.createElement("span");
+    desc.className = "bag-row-desc";
+    desc.textContent = c.item.desc || "";
+
+    row.appendChild(top);
+    row.appendChild(desc);
     list.appendChild(row);
   });
 }
@@ -946,117 +961,28 @@ function getTargetableEnemies() {
   return [];
 }
 
-function getValidItemTargets(item) {
-  var side = item.targetSide || "ally";
-  if (side === "enemy") return getTargetableEnemies();
-  // "ally" — includes player + living allies
-  var targets = [currentPlayer];
-  for (var ai = 0; ai < currentAllies.length; ai++) {
-    if (!currentAllies[ai].knockedOut) targets.push(currentAllies[ai]);
-  }
-  return targets;
-}
-
+// 使用道具：呼叫物品的 effect 函式（新版物品格式，effect 是函式）
+// 物品格式：{ name: "藥水", effect: onPotionHeal, desc: "可以回復生命的藥水" }
 function onUseItem(idx) {
   var item = currentPlayer.inventory[idx];
   if (!item) return;
 
-  var targets = getValidItemTargets(item);
-
-  // If only one valid target, skip selection UI and apply immediately
-  if (targets.length <= 1) {
-    applyItemToTarget(idx, targets[0] || currentPlayer);
-    return;
-  }
-
-  // Multiple targets — show selection panel
-  // Disable action buttons first, then re-show player-action-zone so
-  // target-select-panel (which lives inside it) stays accessible.
   setCombatButtonsEnabled(false);
-  var pZone = document.getElementById("player-action-zone");
-  if (pZone) pZone.style.display = "flex";
-
-  pendingItemIdx = idx;
-
-  var panel = document.getElementById("target-select-panel");
-  var btns  = document.getElementById("target-select-buttons");
-  if (!panel || !btns) { applyItemToTarget(idx, currentPlayer); return; }
-
-  var title = document.getElementById("target-select-title");
-  if (title) title.textContent = "🎒 選擇使用對象：" + item.name;
-
-  btns.innerHTML = "";
-  targets.forEach(function(t, ti) {
-    var btn = document.createElement("button");
-    btn.className = "btn btn-defend";
-    btn.style.flex = "none";
-
-    // Build label
-    var isPlayer = (t === currentPlayer);
-    var hpStr = t.hp + "/" + (t.maxHp || t.hp);
-    btn.textContent = (isPlayer ? "🧙 " : (t.icon || "👥 ")) +
-                      (t.name || "玩家") + " (" + hpStr + ")";
-
-    btn.onclick = (function(target) {
-      return function() {
-        panel.style.display = "none";
-        applyItemToTarget(pendingItemIdx, target);
-        pendingItemIdx = -1;
-      };
-    })(t);
-    btns.appendChild(btn);
-  });
-  panel.style.display = "flex";
-}
-
-function applyItemToTarget(idx, target) {
-  var item = currentPlayer.inventory[idx];
-  if (!item) return;
-
-  setCombatButtonsEnabled(false);
-
-  var eff  = item.effect;
-  var msgs = [];
-  var isPlayer = (target === currentPlayer);
-
-  // HP heal — works on player or ally
-  var healAmt = eff.hp || eff.allyHeal || 0;
-  if (healAmt > 0) {
-    if (isPlayer) {
-      updatePlayerHp(healAmt);
-      msgs.push("回復 " + healAmt + " HP");
-    } else {
-      target.hp = Math.min(target.maxHp, target.hp + healAmt);
-      updateAllyHpArea();
-      msgs.push((target.icon || "") + "「" + target.name + "」回復 " + healAmt + " HP");
-    }
-  }
-
-  // Self-damage (e.g. 狂暴藥水) — always hits player regardless of target
-  if (eff.selfHp) {
-    updatePlayerHp(eff.selfHp);
-    msgs.push(eff.selfHp + " HP（玩家自身）");
-  }
-
-  // ATK buff — applies to selected target
-  if (eff.tempAtk) {
-    target.tempAtk = (target.tempAtk || 0) + eff.tempAtk;
-    if (isPlayer) updateHUD();
-    else updateAllyHpArea();
-    msgs.push((isPlayer ? "" : (target.icon || "") + "「" + target.name + "」") + "ATK +" + eff.tempAtk);
-  }
-
-  // DEF buff — applies to selected target
-  if (eff.tempDef) {
-    target.tempDef = (target.tempDef || 0) + eff.tempDef;
-    if (isPlayer) updateHUD();
-    else updateAllyHpArea();
-    msgs.push((isPlayer ? "" : (target.icon || "") + "「" + target.name + "」") + "DEF +" + eff.tempDef);
-  }
 
   currentPlayer.inventory.splice(idx, 1);
   pendingItemIdx = -1;
-  logMessage("🧪 使用「" + item.name + "」：" + msgs.join("、") + "！");
+  logMessage("🧪 使用「" + item.name + "」！");
+
+  try {
+    if (typeof item.effect === "function") {
+      item.effect();
+    } else {
+      logMessage("💥 「" + item.name + "」的 effect 不是函式，什麼事都沒發生。");
+    }
+  } catch (e) {
+    logMessage("💥 物品效果發生錯誤：" + e.message);
+  }
+
   renderInventoryButtons(false);
 
   // 道具視為一次行動：消耗圖示並推進到下一個行動者（同伴 → 敵人）
@@ -1639,16 +1565,22 @@ function buyShopItem(item) {
   }
   updatePlayerMoney(-price);
   shopPurchaseCounts[item.name] = (shopPurchaseCounts[item.name] || 0) + 1;
-  if (item.effect.atk)   updatePlayerAtk(item.effect.atk);
-  if (item.effect.def)   updatePlayerDef(item.effect.def);
-  if (item.effect.hp)    updatePlayerHp(item.effect.hp);
-  if (item.effect.maxHp) {
-    currentPlayer.maxHp += item.effect.maxHp;
-    currentPlayer.hp     = Math.min(currentPlayer.hp + item.effect.maxHp, currentPlayer.maxHp);
-    updateHUD();
+
+  if (item.isConsumable) {
+    // 消耗品 → 進背包，之後再使用（effect 是函式）
+    currentPlayer.inventory.push({ name: item.name, effect: item.effect, desc: item.desc || "" });
+    renderShopSidebar();
+    showShopMessage("購買了「" + item.name + "」，已放進背包！");
+  } else {
+    // 立即生效：直接呼叫 effect 函式
+    try {
+      if (typeof item.effect === "function") item.effect();
+    } catch (e) {
+      showShopMessage("💥 物品效果發生錯誤：" + e.message);
+    }
+    showShopMessage("購買了「" + item.name + "」！");
   }
   playSound("buy");
-  showShopMessage("購買了「" + item.name + "」！");
   document.getElementById("shop-player-money").textContent = currentPlayer.money;
 }
 

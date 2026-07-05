@@ -124,6 +124,9 @@ function openDevPanel() {
   _renderExport();
   _renderDevMapGrid();
   _renderMapExport();
+  _refreshItemFnSelect();
+  _renderItemExport();
+  _renderDevItemsBagList();
 }
 
 function closeDevPanel() {
@@ -138,7 +141,7 @@ function isDevPanelOpen() {
 
 // ── 分頁切換 ──────────────────────────────────────────────────
 function switchDevTab(name) {
-  var tabs = ["events", "map", "endings"];
+  var tabs = ["events", "map", "items", "endings"];
   for (var i = 0; i < tabs.length; i++) {
     var page = document.getElementById("dev-tab-" + tabs[i]);
     var btn  = document.getElementById("dev-tab-btn-" + tabs[i]);
@@ -147,6 +150,7 @@ function switchDevTab(name) {
     if (btn)  btn.className = "dev-tab-btn" + (active ? " dev-tab-btn--active" : "");
   }
   if (name === "map") { _renderDevMapGrid(); _renderMapExport(); }
+  if (name === "items") { _refreshItemFnSelect(); _renderItemExport(); _renderDevItemsBagList(); }
   if (name === "endings") { _renderEndingsList(); _renderEndingsExport(); }
 }
 
@@ -283,6 +287,8 @@ function applyDevCode() {
     return;
   }
   _refreshFnSelect();
+  _refreshItemFnSelect();
+  _renderItemExport();
   _renderExport();
   _saveDevState();
   _renderAttachList();
@@ -693,6 +699,236 @@ function _copyToClipboard(code, fallbackTextareaId) {
     navigator.clipboard.writeText(code).then(done, function() { fallback(); done(); });
   } else {
     fallback(); done();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  物品生成器分頁
+//
+//  物品格式：{ name: "藥水", effect: onPotionHeal, desc: "..." }
+//  effect 是「函式」，物品被使用時呼叫。
+//  這個分頁幫學員：產生效果函式範本、組出 game.bag.push(...) 程式碼、
+//  並可直接把物品放進背包測試。
+// ══════════════════════════════════════════════════════════════
+
+var DEV_ITEM_TEMPLATES = {
+  heal: {
+    label: "回血藥水", name: "回血藥水", desc: "使用後回復 30 HP", fn: "onPotionHeal",
+    code: function(n) {
+      return [
+        "function onPotionHeal" + n + "() {",
+        "  game.hp += 30;",
+        '  game.message = "🧪 回復 30 HP！";',
+        "}"
+      ].join("\n");
+    }
+  },
+  atk: {
+    label: "力量藥水", name: "力量藥水", desc: "攻擊力永久 +5", fn: "onAtkPotion",
+    code: function(n) {
+      return [
+        "function onAtkPotion" + n + "() {",
+        "  game.atk += 5;",
+        '  game.message = "💪 攻擊力 +5！";',
+        "}"
+      ].join("\n");
+    }
+  },
+  def: {
+    label: "防禦藥水", name: "防禦藥水", desc: "防禦力永久 +3", fn: "onDefPotion",
+    code: function(n) {
+      return [
+        "function onDefPotion" + n + "() {",
+        "  game.def += 3;",
+        '  game.message = "🛡️ 防禦力 +3！";',
+        "}"
+      ].join("\n");
+    }
+  },
+  scroll: {
+    label: "傳送卷軸", name: "傳送卷軸", desc: "使用後回到出生點", fn: "onTeleportScroll",
+    code: function(n) {
+      return [
+        "function onTeleportScroll" + n + "() {",
+        "  game.x = playerStart.x;",
+        "  game.y = playerStart.y;",
+        '  game.message = "🌀 你被傳送回出生點！";',
+        "}"
+      ].join("\n");
+    }
+  }
+};
+
+function _setDevItemsStatus(msg, isError) {
+  var el = document.getElementById("dev-items-status");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = isError ? "dev-status-error" : "dev-status-ok";
+}
+
+// 效果函式下拉：列出「事件程式碼」分頁裡宣告的所有函式
+function _refreshItemFnSelect() {
+  var sel = document.getElementById("dev-item-fn");
+  var editor = document.getElementById("dev-code-editor");
+  if (!sel || !editor) return;
+  var prev  = sel.value;
+  var names = _scanFunctionNames(editor.value);
+  sel.innerHTML = "";
+  if (names.length === 0) {
+    var opt = document.createElement("option");
+    opt.value = ""; opt.textContent = "（先在「事件程式碼」分頁寫函式）";
+    sel.appendChild(opt);
+    return;
+  }
+  for (var i = 0; i < names.length; i++) {
+    var o = document.createElement("option");
+    o.value = names[i]; o.textContent = names[i];
+    sel.appendChild(o);
+  }
+  if (names.indexOf(prev) !== -1) sel.value = prev;
+}
+
+// 快速範本：把效果函式加進程式碼編輯器、套用、並填好表單
+function quickAddItemTemplate(type) {
+  var tpl = DEV_ITEM_TEMPLATES[type];
+  if (!tpl) return;
+  var editor = document.getElementById("dev-code-editor");
+
+  // 找一個沒被用過的編號（onPotionHeal1、onPotionHeal2…）
+  var used = _scanFunctionNames(editor.value);
+  var n = 1;
+  while (used.indexOf(tpl.fn + n) !== -1) n++;
+
+  var sep = editor.value.trim() === "" ? "" : "\n\n";
+  editor.value = editor.value + sep + tpl.code(n) + "\n";
+  applyDevCode();
+
+  var nameEl = document.getElementById("dev-item-name");
+  var descEl = document.getElementById("dev-item-desc");
+  var fnSel  = document.getElementById("dev-item-fn");
+  if (nameEl) nameEl.value = tpl.name;
+  if (descEl) descEl.value = tpl.desc;
+  _refreshItemFnSelect();
+  if (fnSel) fnSel.value = tpl.fn + n;
+  _renderItemExport();
+
+  _setDevItemsStatus("✅ 已生成效果函式 " + tpl.fn + n + "（程式碼在「事件程式碼」分頁）", false);
+}
+
+// 讀取表單，組出 game.bag.push(...) 程式碼
+function _buildItemAddCode() {
+  var nameEl = document.getElementById("dev-item-name");
+  var descEl = document.getElementById("dev-item-desc");
+  var fnSel  = document.getElementById("dev-item-fn");
+  var name = (nameEl && nameEl.value) ? nameEl.value : "神秘物品";
+  var desc = (descEl && descEl.value) ? descEl.value : "";
+  var fn   = (fnSel && fnSel.value)   ? fnSel.value   : "onItemEffect";
+  return [
+    "// 把物品放進背包：原生陣列 push（effect 填函式名稱，不加括號！）",
+    "game.bag.push({",
+    "  name: " + JSON.stringify(name) + ",",
+    "  effect: " + fn + ",",
+    "  desc: " + JSON.stringify(desc),
+    "});"
+  ].join("\n");
+}
+
+function _renderItemExport() {
+  var el = document.getElementById("dev-item-export-code");
+  if (el) el.value = _buildItemAddCode();
+}
+
+function copyItemExportCode() {
+  _copyToClipboard(_buildItemAddCode(), "dev-item-export-code");
+  _setDevItemsStatus("✅ 已複製，貼進你的事件函式裡吧", false);
+}
+
+// 直接把表單的物品放進背包（測試用）
+function devItemGiveToBag() {
+  var nameEl = document.getElementById("dev-item-name");
+  var fnSel  = document.getElementById("dev-item-fn");
+  var descEl = document.getElementById("dev-item-desc");
+  var fnName = fnSel ? fnSel.value : "";
+
+  if (!fnName || typeof window[fnName] !== "function") {
+    _setDevItemsStatus("❌ 效果函式還沒生效：先按快速範本，或到「事件程式碼」分頁寫好並套用", true);
+    return;
+  }
+  // 用「名稱」在使用當下才找函式：這樣重新套用程式碼後，背包裡的物品也會用到新版函式
+  // （原生陣列 push，跟學員在事件裡寫的一樣）
+  game.bag.push({
+    name: (nameEl && nameEl.value) || "神秘物品",
+    effect: function() {
+      var fn = window[fnName];
+      if (typeof fn === "function") fn();
+      else game.message = "💥 找不到效果函式「" + fnName + "」，記得先按「套用程式碼」！";
+    },
+    desc: (descEl && descEl.value) || ""
+  });
+  _setDevItemsStatus("✅ 已放進背包！關閉面板按 B 打開背包看看", false);
+  _renderDevItemsBagList();
+}
+
+// 右欄：目前背包內容（可使用 / 丟棄，示範 bag API）
+function _renderDevItemsBagList() {
+  var list = document.getElementById("dev-items-bag-list");
+  if (!list) return;
+  var inv = (typeof currentPlayer !== "undefined" && currentPlayer.inventory) ? currentPlayer.inventory : [];
+  if (inv.length === 0) {
+    list.innerHTML = '<div class="dev-attach-empty">背包是空的，按「➕ 放進背包試試」加一個吧</div>';
+    return;
+  }
+  list.innerHTML = "";
+
+  var counts = {};
+  var order  = [];
+  for (var i = 0; i < inv.length; i++) {
+    var n = inv[i].name;
+    if (!counts[n]) { counts[n] = { item: inv[i], qty: 0 }; order.push(n); }
+    counts[n].qty++;
+  }
+
+  for (var k = 0; k < order.length; k++) {
+    (function(name, entry) {
+      var row = document.createElement("div");
+      row.className = "dev-attach-row";
+
+      var label = document.createElement("span");
+      label.className = "dev-attach-label";
+      label.textContent = name + " ×" + entry.qty + (entry.item.desc ? "（" + entry.item.desc + "）" : "");
+
+      var useBtn = document.createElement("button");
+      useBtn.className = "dev-bag-use";
+      useBtn.textContent = "使用";
+      useBtn.title = 'findIndex 找到「' + name + '」→ splice 移除 → 呼叫 effect()';
+      useBtn.onclick = function() {
+        // 原生寫法：找到 → 移除 → 呼叫 effect
+        var i = game.bag.findIndex(function(it) { return it.name === name; });
+        if (i !== -1) {
+          var item = game.bag[i];
+          game.bag.splice(i, 1);
+          game.message = "🧪 使用了「" + item.name + "」！";
+          if (typeof item.effect === "function") item.effect();
+        }
+        _renderDevItemsBagList();
+      };
+
+      var rmBtn = document.createElement("button");
+      rmBtn.className = "dev-attach-remove";
+      rmBtn.textContent = "✕";
+      rmBtn.title = 'findIndex 找到「' + name + '」→ splice 移除（不呼叫 effect）';
+      rmBtn.onclick = function() {
+        // 原生寫法：找到 → 移除（不呼叫 effect）
+        var i = game.bag.findIndex(function(it) { return it.name === name; });
+        if (i !== -1) game.bag.splice(i, 1);
+        _renderDevItemsBagList();
+      };
+
+      row.appendChild(label);
+      row.appendChild(useBtn);
+      row.appendChild(rmBtn);
+      list.appendChild(row);
+    })(order[k], counts[order[k]]);
   }
 }
 
