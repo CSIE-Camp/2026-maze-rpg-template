@@ -34,8 +34,18 @@ for (var key in window) {
 // events.js 宣告的學員函式集合
 var eventsJsFunctions = new Set();
 
-// tile.js 的初始地塊定義（清除暫存時還原）
-var initialTileDefs = {};
+// 地塊定義分兩層：
+//   _fileTileDefs  → tile.js 檔案內定義（面板中無法覆蓋/移除，檔案更新永遠生效）
+//   _panelTileDefs → 面板新增的地塊（存 localStorage）
+// 實際使用的 tileDefs = 兩層合併（編號不會重複，新增時會擋掉檔案內的編號）
+var _fileTileDefs  = {};
+var _panelTileDefs = {};
+
+function _rebuildTileDefs() {
+  tileDefs = {};
+  for (var k in _fileTileDefs)  tileDefs[k] = _fileTileDefs[k];
+  for (var k2 in _panelTileDefs) tileDefs[k2] = _panelTileDefs[k2];
+}
 
 // 追蹤當前正在執行的程式碼，以及上一次成功套用的程式碼，用以實現「返回上一次套用」
 var currentlyRunningCode = "";
@@ -177,7 +187,8 @@ function clearDevState() {
     localStorage.removeItem(DEV_STORE_ENDINGS);
   } catch (e) {}
   gameEndings = [];
-  tileDefs = JSON.parse(JSON.stringify(initialTileDefs));
+  _panelTileDefs = {};
+  _rebuildTileDefs();
 
   var editor = document.getElementById("dev-code-editor");
   if (editor) editor.value = _initialEventsCode;
@@ -341,13 +352,26 @@ function addOrUpdateTileDef() {
     _setDevTilesStatus("❌ 地塊編號必須是 10 ~ 255 之間的整數", true);
     return;
   }
-  var isUpdate = !!tileDefs[code];
-  tileDefs[code] = {
+  // 檔案內定義的地塊：無法在面板中覆蓋
+  if (_fileTileDefs[code]) {
+    alert("無法覆蓋：編號 " + code + "「" + (_fileTileDefs[code].name || "") + "」已定義在 tile.js 檔案中。\n" +
+          "請改用其他編號，或直接修改 tile.js。");
+    _setDevTilesStatus("❌ 編號 " + code + " 已定義在 tile.js，無法覆蓋", true);
+    return;
+  }
+  // 面板已有的地塊：確認是否覆蓋
+  var isUpdate = !!_panelTileDefs[code];
+  if (isUpdate &&
+      !confirm("編號 " + code + " 已有地塊「" + (_panelTileDefs[code].name || "") + "」，是否覆蓋？")) {
+    return;
+  }
+  _panelTileDefs[code] = {
     name:  (nameEl && nameEl.value) ? nameEl.value : ("地塊 " + code),
     color: (colorEl && colorEl.value) ? colorEl.value : "#5a3890",
     icon:  (iconEl && iconEl.value) || "",
     event: (fnEl && fnEl.value) || ""
   };
+  _rebuildTileDefs();
   _saveDevTiles();
   _renderTileDefsList();
   _renderTileExport();
@@ -357,7 +381,12 @@ function addOrUpdateTileDef() {
 }
 
 function removeTileDef(code) {
-  delete tileDefs[code];
+  if (_fileTileDefs[code]) {
+    alert("無法移除：編號 " + code + " 定義在 tile.js 檔案中，請直接修改 tile.js。");
+    return;
+  }
+  delete _panelTileDefs[code];
+  _rebuildTileDefs();
   _saveDevTiles();
   _renderTileDefsList();
   _renderTileExport();
@@ -381,6 +410,7 @@ function _renderTileDefsList() {
   for (var i = 0; i < codes.length; i++) {
     (function(code) {
       var def = tileDefs[code];
+      var isFile = !!_fileTileDefs[code];
       var fnInvalid = def.event &&
                       declaredFunctions.indexOf(def.event) === -1 &&
                       typeof window[def.event] !== "function";
@@ -408,40 +438,51 @@ function _renderTileDefsList() {
         label.textContent = code + " " + def.name + fnText;
       }
 
-      var editBtn = document.createElement("button");
-      editBtn.className = "dev-bag-use";
-      editBtn.textContent = "編輯";
-      editBtn.onclick = function() {
-        var codeEl  = document.getElementById("dev-tile-code");
-        var nameEl  = document.getElementById("dev-tile-name");
-        var colorEl = document.getElementById("dev-tile-color");
-        var iconEl  = document.getElementById("dev-tile-icon");
-        var fnEl    = document.getElementById("dev-tile-fn");
-        if (codeEl)  codeEl.value  = code;
-        if (nameEl)  nameEl.value  = def.name || "";
-        if (colorEl) colorEl.value = def.color || "#5a3890";
-        if (iconEl)  { iconEl.value = def.icon || ""; updateTileIconPreview(); }
-        _refreshTileFnSelect();
-        if (fnEl) fnEl.value = def.event || "";
-      };
-
-      var rmBtn = document.createElement("button");
-      rmBtn.className = "dev-attach-remove";
-      rmBtn.textContent = "✕";
-      rmBtn.onclick = function() { removeTileDef(code); };
-
       row.appendChild(swatch);
       row.appendChild(label);
-      row.appendChild(editBtn);
-      row.appendChild(rmBtn);
+
+      if (isFile) {
+        // 檔案內定義：無法即時編輯，只能改 tile.js
+        var badge = document.createElement("span");
+        badge.className = "dev-file-badge";
+        badge.textContent = "tile.js";
+        badge.title = "定義在 tile.js 檔案中，無法即時編輯；要修改請直接編輯 tile.js。";
+        row.appendChild(badge);
+      } else {
+        var editBtn = document.createElement("button");
+        editBtn.className = "dev-bag-use";
+        editBtn.textContent = "編輯";
+        editBtn.onclick = function() {
+          var codeEl  = document.getElementById("dev-tile-code");
+          var nameEl  = document.getElementById("dev-tile-name");
+          var colorEl = document.getElementById("dev-tile-color");
+          var iconEl  = document.getElementById("dev-tile-icon");
+          var fnEl    = document.getElementById("dev-tile-fn");
+          if (codeEl)  codeEl.value  = code;
+          if (nameEl)  nameEl.value  = def.name || "";
+          if (colorEl) colorEl.value = def.color || "#5a3890";
+          if (iconEl)  { iconEl.value = def.icon || ""; updateTileIconPreview(); }
+          _refreshTileFnSelect();
+          if (fnEl) fnEl.value = def.event || "";
+        };
+
+        var rmBtn = document.createElement("button");
+        rmBtn.className = "dev-attach-remove";
+        rmBtn.textContent = "✕";
+        rmBtn.onclick = function() { removeTileDef(code); };
+
+        row.appendChild(editBtn);
+        row.appendChild(rmBtn);
+      }
       list.appendChild(row);
     })(codes[i]);
   }
 }
 
 function _buildTileExportCode() {
+  // 匯出＝檔案層＋面板層整合後的完整定義（tileDefs 即為兩層合併）
   var codes = Object.keys(tileDefs).map(Number).sort(function(a, b) { return a - b; });
-  var lines = ["// ==== tile.js 地塊定義（把這整段貼到 tile.js，取代 var tileDefs）===="];
+  var lines = ["// ==== tile.js 地塊定義（已整合 tile.js 原有地塊與面板新增地塊，把這整段貼到 tile.js 取代 var tileDefs）===="];
   if (codes.length === 0) {
     lines.push("var tileDefs = {};");
     return lines.join("\n");
@@ -471,20 +512,25 @@ function copyTileExportCode() {
 
 function _saveDevTiles() {
   try {
-    localStorage.setItem(DEV_STORE_TILES, JSON.stringify(tileDefs));
+    localStorage.setItem(DEV_STORE_TILES, JSON.stringify(_panelTileDefs));
   } catch (e) {}
 }
 
 function _loadDevTiles() {
-  initialTileDefs = JSON.parse(JSON.stringify(tileDefs));
+  // tile.js 載入的內容 = 檔案層
+  _fileTileDefs = JSON.parse(JSON.stringify(tileDefs));
   var saved = null;
   try { saved = localStorage.getItem(DEV_STORE_TILES); } catch (e) {}
   if (saved) {
     try {
-      var parsed = JSON.parse(saved);
-      if (parsed && typeof parsed === "object") tileDefs = parsed;
+      var parsed = JSON.parse(saved) || {};
+      // 只還原「不在檔案內」的編號：tile.js 的更新永遠優先於暫存
+      for (var k in parsed) {
+        if (!_fileTileDefs[k]) _panelTileDefs[k] = parsed[k];
+      }
     } catch (e) {}
   }
+  _rebuildTileDefs();
 }
 
 // ══════════════════════════════════════════════════════════════
