@@ -14,7 +14,13 @@
   <div id="screen-map">
     <div id="map-layout">
 
-      <!-- ── 左側：地圖 ── -->
+      <!-- ── 左側欄：背包 ── -->
+      <div id="map-bag" style="display:none">
+        <div class="side-section-title">🎒 背包</div>
+        <div id="bag-list"></div>
+      </div>
+
+      <!-- ── 中間：地圖 ── -->
       <div id="map-left">
         <button class="settings-btn" onclick="openSettings()" title="設定">
           <img src="assets/picture/設定.png" alt="⚙️"
@@ -112,15 +118,6 @@
       </div>
     </div>
 
-    <!-- 背包 overlay -->
-    <div id="inventory-overlay" style="display:none">
-      <div id="inventory-overlay-bg" onclick="closeInventory()"></div>
-      <div id="inventory-overlay-content">
-        <div id="inventory-overlay-title">🎒 背包</div>
-        <div id="inventory-overlay-list"></div>
-        <button class="btn btn-minimap-close" onclick="closeInventory()">✕ 關閉</button>
-      </div>
-    </div>
 
   </div>
 

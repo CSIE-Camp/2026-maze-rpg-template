@@ -43,7 +43,7 @@ var _gameProxyTarget = { message: "", panel: "" };
 
 // 重來時清除學員自訂屬性（message/panel 以外的所有 key）
 function _resetGameCustomProps() {
-  var builtins = { message: true, panel: true };
+  var builtins = { message: true, panel: true, bag: true };
   for (var k in _gameProxyTarget) {
     if (!builtins[k]) delete _gameProxyTarget[k];
   }
@@ -62,6 +62,7 @@ var game = new Proxy(_gameProxyTarget, {
       case "keys":    return currentPlayer.keys;
       case "x":       return player.x;
       case "y":       return player.y;
+      case "bag":     return currentPlayer.inventory;
       case "setTile": return _gameSetTile;
       case "getTile": return _gameGetTile;
     }

@@ -411,42 +411,35 @@ body {
 }
 .btn-minimap-close:hover { background: #2a4880; }
 
-/* ── 背包 Overlay ────────────────────────────────────────── */
-#inventory-overlay {
-  position: absolute; inset: 0; z-index: 200;
-  display: flex; align-items: center; justify-content: center;
+/* ── 背包左側欄 ─────────────────────────────────────────── */
+#map-bag {
+  position: relative;
+  top: 10vh;
+  width: 180px;
+  flex-shrink: 0;
+  background: #16213e;
+  border: 2px solid #0f3460;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 540px;
+  overflow-y: auto;
 }
-#inventory-overlay-bg {
-  position: absolute; inset: 0;
-  background: rgba(0,0,0,0.65); backdrop-filter: blur(2px);
+#bag-list {
+  display: flex; flex-direction: column; gap: 6px;
 }
-#inventory-overlay-content {
-  position: relative; z-index: 1;
-  background: #0a1020; border: 2px solid #1e3560;
-  border-radius: 12px; padding: 24px 28px;
-  min-width: 280px; max-width: 420px; width: 90%;
-  display: flex; flex-direction: column; gap: 12px;
-  box-shadow: 0 0 40px rgba(15,52,96,0.8);
+.bag-empty {
+  color: #5a7a9a; font-size: 12px; text-align: center; padding: 12px 0;
 }
-#inventory-overlay-title {
-  font-size: 18px; font-weight: bold; color: #c8d8f8;
-  border-bottom: 1px solid #1e3560; padding-bottom: 10px;
-}
-#inventory-overlay-list {
-  display: flex; flex-direction: column; gap: 8px;
-  max-height: 50vh; overflow-y: auto;
-}
-.inventory-overlay-empty {
-  color: #5a7a9a; font-size: 13px; text-align: center; padding: 16px 0;
-}
-.inventory-overlay-row {
-  display: flex; align-items: baseline; gap: 8px;
+.bag-row {
   background: rgba(255,255,255,0.04); border: 1px solid #1e3560;
-  border-radius: 8px; padding: 8px 12px;
+  border-radius: 6px; padding: 6px 8px;
 }
-.inv-row-name  { font-size: 13px; color: #e0e8ff; font-weight: bold; flex-shrink: 0; }
-.inv-row-desc  { font-size: 11px; color: #7a9ac0; flex: 1; }
-.inv-row-qty   { font-size: 13px; color: #ffd700; font-weight: bold; flex-shrink: 0; }
+.bag-row-name { font-size: 12px; color: #e0e8ff; font-weight: bold; }
+.bag-row-qty  { font-size: 11px; color: #ffd700; margin-left: 4px; }
+.bag-row-desc { font-size: 10px; color: #7a9ac0; display: block; margin-top: 2px; }
 
 #game-board {
   display: flex;

@@ -498,46 +498,46 @@ function closeMiniMapOverlay() {
   _unduckOverlay();
 }
 
-// ── 背包 Overlay ──────────────────────────────────────────────
-function openInventory() {
-  var overlay = document.getElementById("inventory-overlay");
-  if (!overlay) return;
-  var list = document.getElementById("inventory-overlay-list");
-  if (list) {
-    list.innerHTML = "";
-    var inv = currentPlayer.inventory;
-    if (!inv || inv.length === 0) {
-      var empty = document.createElement("div");
-      empty.className = "inventory-overlay-empty";
-      empty.textContent = "（背包是空的）";
-      list.appendChild(empty);
-    } else {
-      var counts = {};
-      for (var i = 0; i < inv.length; i++) {
-        var n = inv[i].name;
-        if (!counts[n]) counts[n] = { item: inv[i], qty: 0 };
-        counts[n].qty++;
-      }
-      Object.keys(counts).forEach(function(name) {
-        var row = document.createElement("div");
-        row.className = "inventory-overlay-row";
-        var c = counts[name];
-        row.innerHTML = "<span class='inv-row-name'>" + c.item.name + "</span>" +
-                        "<span class='inv-row-desc'>" + (c.item.desc || "") + "</span>" +
-                        "<span class='inv-row-qty'>× " + c.qty + "</span>";
-        list.appendChild(row);
-      });
-    }
+// ── 背包側欄 ─────────────────────────────────────────────────
+function renderBagSidebar() {
+  var list = document.getElementById("bag-list");
+  if (!list) return;
+  list.innerHTML = "";
+  var inv = currentPlayer.inventory;
+  if (!inv || inv.length === 0) {
+    var empty = document.createElement("div");
+    empty.className = "bag-empty";
+    empty.textContent = "（空的）";
+    list.appendChild(empty);
+    return;
   }
-  overlay.style.display = "flex";
-  _updateTutorialToggles();
-  _duckOverlay();
+  var counts = {};
+  for (var i = 0; i < inv.length; i++) {
+    var n = inv[i].name;
+    if (!counts[n]) counts[n] = { item: inv[i], qty: 0 };
+    counts[n].qty++;
+  }
+  Object.keys(counts).forEach(function(name) {
+    var row = document.createElement("div");
+    row.className = "bag-row";
+    var c = counts[name];
+    row.innerHTML = "<span class='bag-row-name'>" + c.item.name + "</span>" +
+                    "<span class='bag-row-qty'>× " + c.qty + "</span>" +
+                    "<span class='bag-row-desc'>" + (c.item.desc || "") + "</span>";
+    list.appendChild(row);
+  });
+}
+
+function openInventory() {
+  var panel = document.getElementById("map-bag");
+  if (!panel) return;
+  panel.style.display = "flex";
+  renderBagSidebar();
 }
 
 function closeInventory() {
-  var overlay = document.getElementById("inventory-overlay");
-  if (overlay) overlay.style.display = "none";
-  _unduckOverlay();
+  var panel = document.getElementById("map-bag");
+  if (panel) panel.style.display = "none";
 }
 
 // ── 設定 Overlay ──────────────────────────────────────────────
@@ -1404,7 +1404,7 @@ function applyTileStyle(tile, tileType, x, y) {
 // ── 鍵盤移動 ─────────────────────────────────────────────────
 function closeAnyOverlay() {
   var minimapOverlay   = document.getElementById("minimap-overlay");
-  var inventoryOverlay = document.getElementById("inventory-overlay");
+  var bagPanel         = document.getElementById("map-bag");
   var inspectPanel     = document.getElementById("inspect-panel");
   var shopScreen       = document.getElementById("screen-shop");
   var settingsOverlay  = document.getElementById("settings-overlay");
@@ -1415,7 +1415,7 @@ function closeAnyOverlay() {
   if (eventPanel       && eventPanel.style.display       !== "none") { game.panel = "";       return true; }
   if (settingsOverlay  && settingsOverlay.style.display  !== "none") { closeSettings();       return true; }
   if (minimapOverlay   && minimapOverlay.style.display   !== "none") { closeMiniMapOverlay(); return true; }
-  if (inventoryOverlay && inventoryOverlay.style.display !== "none") { closeInventory();      return true; }
+  if (bagPanel         && bagPanel.style.display         !== "none") { closeInventory();      return true; }
   if (inspectPanel     && inspectPanel.style.display     !== "none") { hideEnemyInfo();       return true; }
   if (shopScreen       && shopScreen.style.display       !== "none") { closeShop();           return true; }
   return false;
@@ -1871,6 +1871,7 @@ function buyShopItem(item) {
   } else {
     currentPlayer.inventory.push({ name: item.name, effect: item.effect, desc: item.desc, targetSide: item.targetSide, targetType: item.targetType });
     updateHUD();
+    renderBagSidebar();
     playSound("buy");
     showShopMessage("🎒 「" + item.name + "」已加入背包！戰鬥中可使用。");
   }
