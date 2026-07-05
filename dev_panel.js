@@ -531,6 +531,50 @@ var DEV_QUICK_TEMPLATES = {
       ].join("\n");
     }
   },
+  minigame: {
+    label: "小遊戲", icon: "assets/picture/小遊戲靶.png", color: "#1878b0",
+    fns: ["onMiniGame"],
+    code: function(n) {
+      return [
+        "function onMiniGame" + n + "() {",
+        "  var score = 0;",
+        "  var target = 3;",
+        "",
+        "  function render() {",
+        "    var num = Math.floor(Math.random() * 10) + 1;",
+        "    game.panel =",
+        '      \'<div style="text-align:center">\' +',
+        "      '<h2>🎯 猜數字小遊戲</h2>' +",
+        "      '<p>進度：' + score + ' / ' + target + '</p>' +",
+        "      '<p>這個數字是奇數還是偶數？　答案：' + num + '</p>' +",
+        "      '<button class=\"btn btn-attack\" onclick=\"mgGuess" + n + "(' + num + ',true)\">奇數</button> ' +",
+        "      '<button class=\"btn btn-defend\" onclick=\"mgGuess" + n + "(' + num + ',false)\">偶數</button>' +",
+        "      '</div>';",
+        "  }",
+        "",
+        "  window.mgGuess" + n + " = function(num, isOdd) {",
+        "    var correct = (num % 2 === 1) === isOdd;",
+        "    if (correct) {",
+        "      score++;",
+        '      game.message = "✅ 答對了！";',
+        "      if (score >= target) {",
+        "        game.money += 30;",
+        "        game.setTile(game.x, game.y, 0);",
+        '        game.panel = \'<div style="text-align:center"><h2>🎉 過關！</h2><p>獲得 30 金幣</p>\' +',
+        "          '<button class=\"btn btn-attack\" onclick=\"game.panel=\\'\\';\">確定</button></div>';",
+        "        return;",
+        "      }",
+        "    } else {",
+        '      game.message = "❌ 答錯了！";',
+        "    }",
+        "    render();",
+        "  };",
+        "",
+        "  render();",
+        "}"
+      ].join("\n");
+    }
+  },
   battle: {
     label: "小怪戰鬥", icon: "assets/picture/哥布林.png", color: "#b83030",
     fns: ["onBattle", "battleAtk", "battleRun"],

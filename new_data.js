@@ -58,13 +58,6 @@ var shopItems = [
 
 
 
-// ── 射擊小遊戲設定 ────────────────────────────────────────────
-var MG_TARGET         = 5;
-var MG_TIME           = 20;
-var MG_ENEMY_DURATION = 1500;
-var MG_SPAWN_INTERVAL = 1000;
-
-
 // ── 對話文本 ────────────────────────
 var dialogues = {
   intro: [

@@ -152,26 +152,6 @@
 
 
   <!-- ════════════════════════════════════════════════════
-       畫面 4：射擊小遊戲畫面
-       ════════════════════════════════════════════════════ -->
-  <div id="screen-minigame" style="display:none">
-
-    <div id="minigame-box">
-      <h2>🎯 射擊小遊戲</h2>
-      <div id="mg-hud">
-        <span>擊中：<strong id="mg-score">0</strong> / <strong id="mg-target">5</strong></span>
-        <span>⏱️ 剩餘：<strong id="mg-time">30</strong> 秒</span>
-      </div>
-      <div id="mg-area">
-        <div id="mg-crosshair">＋</div>
-      </div>
-      <p id="mg-hint">移動滑鼠瞄準敵人，按下左鍵射擊！</p>
-    </div>
-
-  </div>
-
-
-  <!-- ════════════════════════════════════════════════════
        畫面 5：對話框
        ════════════════════════════════════════════════════ -->
   <div id="screen-dialogue" style="display:none">
@@ -309,6 +289,7 @@
             <button class="btn dev-quick-btn" onclick="quickAddEvent('chest')">寶箱</button>
             <button class="btn dev-quick-btn" onclick="quickAddEvent('shop')">商店</button>
             <button class="btn dev-quick-btn" onclick="quickAddEvent('lock')">上鎖的門</button>
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('minigame')">小遊戲</button>
             <button class="btn dev-quick-btn" onclick="quickAddEvent('battle')">小怪戰鬥</button>
           </div>
           <div class="dev-panel-hint">自動加入範本程式碼，並掛接在目前位置</div>

@@ -171,9 +171,6 @@ var dialogueCallback = null;
 
 
 // ── 小遊戲狀態 ────────────────────────────────────────────────
-var mgScore        = 0;
-var mgTimeLeft     = MG_TIME;
-var mgTimer        = null;
 var mgCurrentEnemy = null;
 var mgEnemyTimer   = null;
 var mgRunning      = false;
@@ -182,7 +179,7 @@ var mgRunning      = false;
 // ── 工具函式 ──────────────────────────────────────────────────
 function showScreen(screenId) {
   var screens = ["screen-map", "screen-shop",
-                 "screen-minigame", "screen-dialogue",
+                 "screen-dialogue",
                  "screen-gameover", "screen-clear"];
   for (var i = 0; i < screens.length; i++) {
     var el = document.getElementById(screens[i]);
@@ -324,7 +321,6 @@ function renderMiniMap() {
   var TC = {};
   TC[MAP_TILE.EMPTY]      = "#2d4a7a";
   TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.MINI_GAME]  = "#1878b0";
   TC[MAP_TILE.EVENT]      = "#5a3890";
 
   for (var dy = -RADIUS; dy <= RADIUS; dy++) {
@@ -380,7 +376,6 @@ function renderMiniMapLarge() {
   var TC = {};
   TC[MAP_TILE.EMPTY]      = "#2d4a7a";
   TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.MINI_GAME]  = "#1878b0";
   TC[MAP_TILE.EVENT]      = "#5a3890";
 
   for (var y = 0; y < rows; y++) {
@@ -1355,7 +1350,6 @@ function applyTileStyle(tile, tileType, x, y) {
   var sm = {};
   sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
   sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "assets/picture/小遊戲靶.png",alt: "小遊戲", emoji: "🌀" };
   // 寶箱(2)/商店(6)/傳送門(8) 不再是特殊地塊：未列入 sm，會落到下方 fallback 當作空地
 
   var info = sm[tileType];
@@ -1486,8 +1480,7 @@ function checkDialogueTriggers(x, y) {
 
 function checkTileEvent(x, y) {
   var t = currentMap[y][x];
-  if      (t === MAP_TILE.MINI_GAME)  triggerMiniGame(x, y);
-  else if (t === MAP_TILE.EVENT && typeof dispatchCustomTileEvent === "function") {
+  if (t === MAP_TILE.EVENT && typeof dispatchCustomTileEvent === "function") {
     dispatchCustomTileEvent(x, y);
   }
 }
@@ -3434,26 +3427,6 @@ function showMapMessage(msg) {
   showMapMessage._timer = setTimeout(function() { el.style.opacity = "0"; }, 2500);
 }
 
-// ── 小遊戲橋接 ────────────────────────────────────────────────
-function onMiniGameEnd(result) {
-  stopMiniGame(); showScreen("screen-map");
-  if (result) {
-    updatePlayerMoney(30); showMapMessage("🎉 小遊戲通關！你獲得了 30 金幣！"); playSound("key");
-    if (currentMiniGameTile) {
-      currentMap[currentMiniGameTile.y][currentMiniGameTile.x] = MAP_TILE.EMPTY;
-    }
-  } else {
-    showMapMessage("小遊戲失敗，再接再厲！");
-  }
-  currentMiniGameTile = null; renderMap();
-}
-
-var currentMiniGameTile = null;
-function triggerMiniGame(x, y) {
-  currentMiniGameTile = { x: x, y: y };
-  showScreen("screen-minigame"); startMiniGame();
-}
-
 // ── 對話系統 ─────────────────────────────────────────────────
 function showDialogue(lines, callback) {
   dialogueQueue = lines.slice(); dialogueCallback = callback || null;
@@ -4021,106 +3994,3 @@ function enemyTurn(player, enemy) {
 }
 
 
-function startMiniGame() {
-  mgScore    = 0;
-  mgTimeLeft = MG_TIME;
-  mgRunning  = true;
-
-  updateMiniGameHUD()
-  var area = document.getElementById("mg-area");
-  if (area) {
-    area.onmousemove  = onMgMouseMove;
-    area.onclick      = onMgClick;
-    area.onmouseleave = function() {
-      var c = document.getElementById("mg-crosshair");
-      if (c) c.style.display = "none";
-    };
-  }
-
-  spawnMgEnemy();
-
-  mgTimer = setInterval(function() {
-    if (!mgRunning) { clearInterval(mgTimer); return; }
-    mgTimeLeft--;
-    updateMiniGameHUD();
-    if (mgTimeLeft <= 0) { onMiniGameEnd(false); }
-  }, 1000);
-}
-
-function stopMiniGame() {
-  mgRunning = false;
-  clearInterval(mgTimer);
-  clearTimeout(mgEnemyTimer);
-  if (mgCurrentEnemy && mgCurrentEnemy.parentNode)
-    mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
-  mgCurrentEnemy = null;
-  var c = document.getElementById("mg-crosshair");
-  if (c) c.style.display = "none";
-  var area = document.getElementById("mg-area");
-  if (area) area.onmousemove = area.onclick = area.onmouseleave = null;
-}
-
-function spawnMgEnemy() {
-  var area = document.getElementById("mg-area");
-  if (!area) return;
-  var maxX = area.clientWidth  - 50;
-  var maxY = area.clientHeight - 50;
-  var en = document.createElement("img");
-  en.src       = "assets/picture/小遊戲靶.png";
-  en.className  = "mg-enemy";
-  en.style.left = Math.floor(Math.random() * maxX) + "px";
-  en.style.top  = Math.floor(Math.random() * maxY) + "px";
-  area.appendChild(en);
-  mgCurrentEnemy = en;
-
-  mgEnemyTimer = setTimeout(function() {
-    if (mgCurrentEnemy && mgCurrentEnemy.parentNode) {
-      mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
-      mgCurrentEnemy = null;
-    }
-    if (mgRunning) spawnMgEnemy();
-  }, MG_ENEMY_DURATION);
-}
-
-function onMgMouseMove(e) {
-  var crosshair = document.getElementById("mg-crosshair");
-  if (!crosshair) return;
-  crosshair.style.display = "block";
-  var area = document.getElementById("mg-area");
-  var rect = area.getBoundingClientRect();
-  crosshair.style.left = (e.clientX - rect.left - crosshair.offsetWidth  / 2) + "px";
-  crosshair.style.top  = (e.clientY - rect.top  - crosshair.offsetHeight / 2) + "px";
-}
-
-function onMgClick(e) {
-  if (!mgRunning || !mgCurrentEnemy) return;
-  var area = document.getElementById("mg-area");
-  var rect = area.getBoundingClientRect();
-  var cx   = e.clientX - rect.left;
-  var cy   = e.clientY - rect.top;
-
-  var ex = parseInt(mgCurrentEnemy.style.left, 10);
-  var ey = parseInt(mgCurrentEnemy.style.top,  10);
-  var ew = mgCurrentEnemy.offsetWidth  || 50;
-  var eh = mgCurrentEnemy.offsetHeight || 50;
-
-  if (cx >= ex && cx <= ex + ew && cy >= ey && cy <= ey + eh) {
-    mgScore++;
-    updateMiniGameHUD();
-    playSound("shot");
-    if (mgCurrentEnemy.parentNode) mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
-    mgCurrentEnemy = null;
-    clearTimeout(mgEnemyTimer);
-    spawnMgEnemy();
-    if (mgScore >= MG_TARGET) onMiniGameEnd(true);
-  }
-}
-
-function updateMiniGameHUD() {
-  var scoreEl  = document.getElementById("mg-score");
-  var targetEl = document.getElementById("mg-target");
-  var timeEl   = document.getElementById("mg-time");
-  if (scoreEl)  scoreEl.textContent  = mgScore;
-  if (targetEl) targetEl.textContent = MG_TARGET;
-  if (timeEl)   timeEl.textContent   = mgTimeLeft;
-}
