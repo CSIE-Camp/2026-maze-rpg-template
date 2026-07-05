@@ -498,6 +498,39 @@ var DEV_QUICK_TEMPLATES = {
       ].join("\n");
     }
   },
+  lock: {
+    label: "上鎖的門", icon: "assets/picture/門鎖.png", color: "#604898",
+    fns: ["onLock"],
+    code: function(n) {
+      return [
+        "function onLock" + n + "() {",
+        '  if (game.hasKey' + n + ') {',
+        '    game.message = "🔓 門已經打開了！";',
+        "    return;",
+        "  }",
+        '  game.panel = \'<div style="text-align:center">\' +',
+        "    '<h2>🚪 上鎖的門</h2>' +",
+        "    '<p>這扇門被鎖住了。</p>' +",
+        "    '<button class=\"btn btn-attack\" onclick=\"unlockDoor" + n + "()\">🔑 嘗試開門（需要 10 金幣）</button> ' +",
+        "    '<button class=\"btn btn-flee\" onclick=\"game.panel=\\'\\';\">離開</button>' +",
+        "    '</div>';",
+        "}",
+        "",
+        "function unlockDoor" + n + "() {",
+        "  if (game.money >= 10) {",
+        "    game.money -= 10;",
+        "    game.hasKey" + n + " = true;",
+        "    game.setTile(game.x, game.y, 0);",
+        '    game.panel = "";',
+        '    game.message = "🔓 你花了 10 金幣打開了門！";',
+        "  } else {",
+        '    game.message = "💸 金幣不足！";',
+        '    game.panel = "";',
+        "  }",
+        "}"
+      ].join("\n");
+    }
+  },
   battle: {
     label: "小怪戰鬥", icon: "assets/picture/哥布林.png", color: "#b83030",
     fns: ["onBattle", "battleAtk", "battleRun"],

@@ -296,7 +296,6 @@ function updateHUD() {
   set("hud-atk-inline", currentPlayer.atk + (currentPlayer.tempAtk || 0));
   set("hud-def-inline", currentPlayer.def + (currentPlayer.tempDef || 0));
   set("hud-money", currentPlayer.money);
-  set("hud-keys",  currentPlayer.keys);
 
   var bar = document.getElementById("player-hp-bar-fill");
   if (bar) bar.style.width = (currentPlayer.hp / currentPlayer.maxHp * 100) + "%";
@@ -325,7 +324,6 @@ function renderMiniMap() {
   var TC = {};
   TC[MAP_TILE.EMPTY]      = "#2d4a7a";
   TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.DOOR]       = "#604898";
   TC[MAP_TILE.MINI_GAME]  = "#1878b0";
   TC[MAP_TILE.EVENT]      = "#5a3890";
 
@@ -382,7 +380,6 @@ function renderMiniMapLarge() {
   var TC = {};
   TC[MAP_TILE.EMPTY]      = "#2d4a7a";
   TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.DOOR]       = "#604898";
   TC[MAP_TILE.MINI_GAME]  = "#1878b0";
   TC[MAP_TILE.EVENT]      = "#5a3890";
 
@@ -1358,7 +1355,6 @@ function applyTileStyle(tile, tileType, x, y) {
   var sm = {};
   sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
   sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/門鎖.png"    ,alt: "門",    emoji: "🚪" };
   sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "assets/picture/小遊戲靶.png",alt: "小遊戲", emoji: "🌀" };
   // 寶箱(2)/商店(6)/傳送門(8) 不再是特殊地塊：未列入 sm，會落到下方 fallback 當作空地
 
@@ -1459,28 +1455,6 @@ document.addEventListener("keydown", function(e) {
 
   var targetTile = currentMap[newY][newX];
   if (targetTile === MAP_TILE.WALL) return;
-
-  if (targetTile === MAP_TILE.DOOR) {
-    if (currentPlayer.keys <= 0) {
-      playSound("locked_door"); showMapMessage("門被鎖住了！你需要一把鑰匙才能通過。"); return;
-    }
-    updatePlayerKeys(-1);
-    currentMap[newY][newX] = MAP_TILE.EMPTY;
-    playSound("unlock_door"); showMapMessage("你用鑰匙打開了門！剩餘鑰匙：" + currentPlayer.keys);
-    // 開門觸發對話
-    if (typeof dialogueTriggers !== "undefined") {
-      for (var _di = 0; _di < dialogueTriggers.length; _di++) {
-        var _dt = dialogueTriggers[_di];
-        if (_dt.doorX !== undefined &&
-            _dt.doorX === newX && _dt.doorY === newY &&
-            !_firedDialogueTriggers[_dt.id]) {
-          _firedDialogueTriggers[_dt.id] = true;
-          showDialogue(_dt.lines);
-          break;
-        }
-      }
-    }
-  }
 
   player.x = newX; player.y = newY;
   renderMap();
@@ -3464,7 +3438,7 @@ function showMapMessage(msg) {
 function onMiniGameEnd(result) {
   stopMiniGame(); showScreen("screen-map");
   if (result) {
-    updatePlayerKeys(1); showMapMessage("🎉 小遊戲通關！你獲得了一把鑰匙！"); playSound("key");
+    updatePlayerMoney(30); showMapMessage("🎉 小遊戲通關！你獲得了 30 金幣！"); playSound("key");
     if (currentMiniGameTile) {
       currentMap[currentMiniGameTile.y][currentMiniGameTile.x] = MAP_TILE.EMPTY;
     }

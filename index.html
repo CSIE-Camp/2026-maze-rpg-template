@@ -63,10 +63,6 @@
                 <span id="hud-money">0</span>
               </div>
               <div class="side-resource-row">
-                <span class="side-resource-label">🔑 鑰匙</span>
-                <span id="hud-keys">0</span>
-              </div>
-              <div class="side-resource-row">
                 <button class="btn btn-side-action btn-side-shop" id="btn-open-shop"
                       onclick="openShopFromHUD()" style="display:none">🛒 商店</button>
               </div>
@@ -312,6 +308,7 @@
             <button class="btn dev-quick-btn" onclick="quickAddEvent('portal')">傳送門</button>
             <button class="btn dev-quick-btn" onclick="quickAddEvent('chest')">寶箱</button>
             <button class="btn dev-quick-btn" onclick="quickAddEvent('shop')">商店</button>
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('lock')">上鎖的門</button>
             <button class="btn dev-quick-btn" onclick="quickAddEvent('battle')">小怪戰鬥</button>
           </div>
           <div class="dev-panel-hint">自動加入範本程式碼，並掛接在目前位置</div>

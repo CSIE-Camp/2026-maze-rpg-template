@@ -59,7 +59,6 @@ var game = new Proxy(_gameProxyTarget, {
       case "atk":     return currentPlayer.atk;
       case "def":     return currentPlayer.def;
       case "money":   return currentPlayer.money;
-      case "keys":    return currentPlayer.keys;
       case "x":       return player.x;
       case "y":       return player.y;
       case "bag":     return currentPlayer.inventory;
@@ -85,7 +84,6 @@ var game = new Proxy(_gameProxyTarget, {
       case "atk":   currentPlayer.atk   = value; updateHUD(); break;
       case "def":   currentPlayer.def   = value; updateHUD(); break;
       case "money": currentPlayer.money = Math.max(0, value); updateHUD(); break;
-      case "keys":  currentPlayer.keys  = Math.max(0, value); updateHUD(); break;
       case "x":
         if (value >= 0 && value < currentMap[0].length) { player.x = value; renderMap(); }
         break;
