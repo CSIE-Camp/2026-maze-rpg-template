@@ -5,6 +5,9 @@
 // ============================================================
 
 
+// ── DEV_MODE：設為 false 隱藏「程式碼」和「開發模式」按鈕 ─────
+var DEV_MODE = true;
+
 // ── 偽隨機數（固定種子） ────────────────────────────────────────
 function makeRng(seed) {
   var s = (seed >>> 0) || 1;
@@ -3643,8 +3646,13 @@ function notifyShopClosed() {
 
 // ── 初始化 ────────────────────────────────────────────────────
 window.onload = function() {
+  if (!DEV_MODE) {
+    var btnCode = document.getElementById("btn-open-code");
+    var btnDev  = document.getElementById("btn-open-dev");
+    if (btnCode) btnCode.style.display = "none";
+    if (btnDev)  btnDev.style.display  = "none";
+  }
   updateHUD(); renderMap();
-  // 先顯示地圖畫面再疊上教學
   if (typeof dialogues !== "undefined" &&
       dialogues.intro && dialogues.intro.length > 0) {
     showDialogue(dialogues.intro, function() {
