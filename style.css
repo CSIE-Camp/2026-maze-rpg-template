@@ -2094,6 +2094,51 @@ body {
   white-space: pre;
 }
 
+/* ── 對話生成器分頁 ──────────────────────────────────────────── */
+#dev-talk-left {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 380px; min-width: 280px;
+}
+#dev-talk-right {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 300px; min-width: 260px;
+}
+#dev-tab-talk code {
+  background: #060a14; border: 1px solid #1e3560; border-radius: 4px;
+  padding: 1px 5px; color: #c8a8f8;
+  font-family: "Consolas", "Menlo", monospace; font-size: 11px;
+}
+#dev-talk-lines {
+  display: flex; flex-direction: column; gap: 6px;
+  height: 240px; flex: none; overflow-y: auto;
+  align-content: flex-start;
+}
+.dev-talk-row { display: flex; gap: 6px; align-items: center; flex: none; }
+.dev-talk-row input {
+  background: #0c1628; border: 1px solid #1e3560; border-radius: 6px;
+  color: #e8f0ff; padding: 6px 8px; font-size: 13px; outline: none;
+}
+.dev-talk-row input:focus { border-color: #5a3890; }
+.dev-talk-speaker { width: 90px; flex: none; }
+.dev-talk-text { flex: 1; min-width: 0; }
+#dev-talk-quick-add { display: flex; gap: 8px; }
+#dev-talk-toolbar { display: flex; align-items: center; gap: 12px; }
+#dev-talk-status { font-size: 12px; flex: 1; }
+#dev-talk-export-code {
+  height: 170px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
+#dev-talk-doc pre {
+  background: #060a14; border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; overflow-x: auto;
+  font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.6; color: #a0b8d8;
+  white-space: pre;
+}
+
 /* ── 地圖編輯分頁 ─────────────────────────────────────────── */
 #dev-map-left {
   display: flex; flex-direction: column; gap: 10px;

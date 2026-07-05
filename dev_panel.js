@@ -127,6 +127,8 @@ function openDevPanel() {
   _refreshItemFnSelect();
   _renderItemExport();
   _renderDevItemsBagList();
+  _renderTalkLines();
+  _renderTalkExport();
 }
 
 function closeDevPanel() {
@@ -141,7 +143,7 @@ function isDevPanelOpen() {
 
 // ── 分頁切換 ──────────────────────────────────────────────────
 function switchDevTab(name) {
-  var tabs = ["events", "map", "items", "endings"];
+  var tabs = ["events", "map", "items", "talk", "endings"];
   for (var i = 0; i < tabs.length; i++) {
     var page = document.getElementById("dev-tab-" + tabs[i]);
     var btn  = document.getElementById("dev-tab-btn-" + tabs[i]);
@@ -151,6 +153,7 @@ function switchDevTab(name) {
   }
   if (name === "map") { _renderDevMapGrid(); _renderMapExport(); }
   if (name === "items") { _refreshItemFnSelect(); _renderItemExport(); _renderDevItemsBagList(); }
+  if (name === "talk") { _renderTalkLines(); _renderTalkExport(); }
   if (name === "endings") { _renderEndingsList(); _renderEndingsExport(); }
 }
 
@@ -159,8 +162,10 @@ function _stripVarDeclarations(src) {
   return src
     .replace(/^\s*var\s+tileEvents\s*=[\s\S]*?;\s*$/m, "")
     .replace(/^\s*var\s+gameEndings\s*=[\s\S]*?;\s*$/m, "")
+    .replace(/^\s*var\s+introDialogue\s*=[\s\S]*?;\s*$/m, "")
     .replace(/^\s*\/\/\s*掛接表.*$/m, "")
     .replace(/^\s*\/\/\s*結局表.*$/m, "")
+    .replace(/^\s*\/\/\s*開場對話.*$/gm, "")
     .replace(/^\s*\/\/\s*==+[\s\S]*?==+\s*$/gm, "")
     .replace(/^\n{3,}/gm, "\n\n")
     .trim();
@@ -931,6 +936,187 @@ function _renderDevItemsBagList() {
       list.appendChild(row);
     })(order[k], counts[order[k]]);
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  對話生成器分頁
+//
+//  對話格式：[{ speaker: "名字", text: "台詞" }, ...]
+//  這個分頁幫學員：編輯對話內容、直接播放測試、
+//  匯出 game.talk 事件函式，或 introDialogue（開場對話）程式碼。
+// ══════════════════════════════════════════════════════════════
+
+var devTalkLines = [
+  { speaker: "旁白", text: "黑暗魔王的詛咒籠罩了整片大地……" },
+  { speaker: "勇者", text: "我一定要找到他，終結這一切！" }
+];
+
+var DEV_TALK_TEMPLATES = {
+  intro: [
+    { speaker: "旁白", text: "黑暗魔王的詛咒籠罩了整片大地……" },
+    { speaker: "勇者", text: "我一定要找到他，終結這一切！" }
+  ],
+  npc: [
+    { speaker: "神秘老人", text: "年輕人，前面很危險啊……" },
+    { speaker: "勇者",     text: "我不怕！" }
+  ],
+  boss: [
+    { speaker: "黑暗魔王", text: "居然有人能闖到這裡……" },
+    { speaker: "黑暗魔王", text: "就讓你見識真正的絕望吧！" },
+    { speaker: "勇者",     text: "決一勝負吧！" }
+  ]
+};
+
+function _setDevTalkStatus(msg, isError) {
+  var el = document.getElementById("dev-talk-status");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = isError ? "dev-status-error" : "dev-status-ok";
+}
+
+function _renderTalkLines() {
+  var list = document.getElementById("dev-talk-lines");
+  if (!list) return;
+  list.innerHTML = "";
+  for (var i = 0; i < devTalkLines.length; i++) {
+    (function(idx) {
+      var line = devTalkLines[idx];
+      var row = document.createElement("div");
+      row.className = "dev-talk-row";
+
+      var sp = document.createElement("input");
+      sp.type = "text";
+      sp.className = "dev-talk-speaker";
+      sp.placeholder = "名字";
+      sp.value = line.speaker || "";
+      sp.oninput = function() { devTalkLines[idx].speaker = this.value; _renderTalkExport(); };
+
+      var tx = document.createElement("input");
+      tx.type = "text";
+      tx.className = "dev-talk-text";
+      tx.placeholder = "台詞";
+      tx.value = line.text || "";
+      tx.oninput = function() { devTalkLines[idx].text = this.value; _renderTalkExport(); };
+
+      var rm = document.createElement("button");
+      rm.className = "dev-attach-remove";
+      rm.textContent = "✕";
+      rm.onclick = function() { removeTalkLine(idx); };
+
+      row.appendChild(sp);
+      row.appendChild(tx);
+      row.appendChild(rm);
+      list.appendChild(row);
+    })(i);
+  }
+}
+
+function addTalkLine() {
+  devTalkLines.push({ speaker: "", text: "" });
+  _renderTalkLines();
+  _renderTalkExport();
+}
+
+function removeTalkLine(idx) {
+  devTalkLines.splice(idx, 1);
+  _renderTalkLines();
+  _renderTalkExport();
+}
+
+function quickAddTalkTemplate(type) {
+  var tpl = DEV_TALK_TEMPLATES[type];
+  if (!tpl) return;
+  devTalkLines = JSON.parse(JSON.stringify(tpl));
+  _renderTalkLines();
+  _renderTalkExport();
+  _setDevTalkStatus("✅ 已套用範本，可以直接改文字", false);
+}
+
+// 過濾掉完全空白的句子
+function _validTalkLines() {
+  return devTalkLines.filter(function(l) {
+    return (l.speaker || "").trim() !== "" || (l.text || "").trim() !== "";
+  });
+}
+
+// 直接播放測試：先關面板 → 播對話 → 播完自動回到面板
+function devTalkPlay() {
+  var lines = _validTalkLines();
+  if (lines.length === 0) {
+    _setDevTalkStatus("❌ 對話是空的，先寫幾句吧", true);
+    return;
+  }
+  closeDevPanel();
+  game.talk(lines, function() {
+    openDevPanel();
+    switchDevTab("talk");
+    _setDevTalkStatus("✅ 播放結束！匯出程式碼貼進事件就能用", false);
+  });
+}
+
+function _buildTalkExportCode() {
+  var lines = _validTalkLines();
+  var modeEl = document.getElementById("dev-talk-mode");
+  var mode = modeEl ? modeEl.value : "fn";
+
+  function buildArray(indent) {
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      out.push(indent + "{ speaker: " + JSON.stringify(lines[i].speaker || "") +
+               ", text: " + JSON.stringify(lines[i].text || "") + " }" +
+               (i < lines.length - 1 ? "," : ""));
+    }
+    if (out.length === 0) out.push(indent + "// （還沒有對話內容）");
+    return out;
+  }
+
+  if (mode === "intro") {
+    return ["// ==== 開場對話（貼到 events.js，取代原本的 var introDialogue）===="]
+      .concat(["var introDialogue = ["], buildArray("  "), ["];"])
+      .join("\n");
+  }
+
+  var fnEl = document.getElementById("dev-talk-fn-name");
+  var fn = (fnEl && fnEl.value.trim()) || "onTalk1";
+  return ["// 對話事件：掛接在地塊上，踩到就會播放對話",
+          "function " + fn + "() {",
+          "  game.talk(["]
+    .concat(buildArray("    "), ["  ]);", "}"])
+    .join("\n");
+}
+
+function _renderTalkExport() {
+  var el = document.getElementById("dev-talk-export-code");
+  if (el) el.value = _buildTalkExportCode();
+}
+
+function copyTalkExportCode() {
+  _copyToClipboard(_buildTalkExportCode(), "dev-talk-export-code");
+  _setDevTalkStatus("✅ 已複製到剪貼簿", false);
+}
+
+// 把對話事件函式加進「事件程式碼」分頁並套用
+function devTalkAddToEditor() {
+  var modeEl = document.getElementById("dev-talk-mode");
+  if (modeEl && modeEl.value === "intro") {
+    _setDevTalkStatus("💡 開場對話請複製後貼到 events.js 檔案裡（取代 var introDialogue）", true);
+    return;
+  }
+  var fnEl = document.getElementById("dev-talk-fn-name");
+  var fn = (fnEl && fnEl.value.trim()) || "";
+  if (!/^[A-Za-z_$][\w$]*$/.test(fn)) {
+    _setDevTalkStatus("❌ 函式名稱只能用英文字母、數字、_（且不能數字開頭）", true);
+    return;
+  }
+  if (_validTalkLines().length === 0) {
+    _setDevTalkStatus("❌ 對話是空的，先寫幾句吧", true);
+    return;
+  }
+  var editor = document.getElementById("dev-code-editor");
+  var sep = editor.value.trim() === "" ? "" : "\n\n";
+  editor.value = editor.value + sep + _buildTalkExportCode() + "\n";
+  applyDevCode();
+  _setDevTalkStatus("✅ 已加入函式 " + fn + "，到「事件程式碼」分頁掛接到地塊上吧", false);
 }
 
 // ══════════════════════════════════════════════════════════════

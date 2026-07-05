@@ -70,11 +70,8 @@ var shopItems = [
 
 
 // ── 對話文本 ────────────────────────
+// 開場對話請到 events.js 改 var introDialogue（學員自訂）
 var dialogues = {
-  intro: [
-    { speaker: "旁白",   text: "黑暗魔王的詛咒籠罩了整片大地……" },
-    { speaker: "勇者",   text: "我一定要找到他，終結這一切！" }
-  ],
   shop_first: [
     { speaker: "商人",   text: "歡迎光臨！看看有什麼需要的吧。" }
   ],
