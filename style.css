@@ -1811,20 +1811,8 @@ body {
   flex: 1 1 280px;
   min-width: 240px;
 }
-#dev-position { font-size: 13px; color: #c8d8f0; }
-#dev-attach-controls { display: flex; gap: 8px; }
-#dev-fn-select {
-  flex: 1; background: #060a14; color: #d8e8ff;
-  border: 1px solid #1e3560; border-radius: 6px;
-  padding: 6px 8px; font-size: 13px; outline: none;
-}
-.btn-dev-attach { background: #1565c0; color: #fff; flex: none; padding: 6px 12px; font-size: 12px; }
 .btn-dev-copy   { background: #333; color: #ccc; flex: none; padding: 4px 10px; font-size: 11px; }
 
-#dev-attach-list {
-  display: flex; flex-direction: column; gap: 6px;
-  max-height: 140px; overflow-y: auto;
-}
 .dev-attach-empty { font-size: 12px; color: #6a7a9a; }
 .dev-attach-row {
   display: flex; align-items: center; justify-content: space-between;
@@ -1846,9 +1834,17 @@ body {
   resize: none; outline: none;
 }
 
-/* 事件地塊：底色由學員的 tileEvents 設定（inline style），這裡只給預設 */
+/* 事件地塊：底色由 tile.js 的 tileDefs 設定（inline style），這裡只給預設 */
 .tile--event {
   background: #5a3890;
+}
+
+/* 未定義的地塊（DEV_MODE 下標紅提醒開發者） */
+.tile--unknown {
+  background: #7a1010;
+  color: #ffb0b0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold;
 }
 
 /* ── 自訂事件面板（game.panel = "..."）─────────────────────── */
@@ -2007,26 +2003,7 @@ body {
   width: 100%;
 }
 
-/* ── 事件外觀（圖示 / 顏色）輸入 ───────────────────────────── */
-#dev-style-controls {
-  display: flex; align-items: center; gap: 16px;
-  font-size: 13px; color: #c8d8f0;
-}
-#dev-style-controls label { display: flex; align-items: center; gap: 6px; }
-#dev-event-icon {
-  width: 48px; text-align: center;
-  background: #060a14; color: #d8e8ff;
-  border: 1px solid #1e3560; border-radius: 6px;
-  padding: 5px 4px; font-size: 15px; outline: none;
-}
-#dev-event-color {
-  width: 42px; height: 30px; padding: 2px;
-  background: #060a14; border: 1px solid #1e3560; border-radius: 6px;
-  cursor: pointer;
-}
-
-/* ── 快速加入 ─────────────────────────────────────────────── */
-#dev-quick-add { display: flex; gap: 8px; }
+/* ── 快速範本按鈕 ─────────────────────────────────────────── */
 .dev-quick-btn {
   background: #101830; color: #c8d8f0;
   border: 1px solid #2a4880; flex: 1;
@@ -2042,6 +2019,38 @@ body {
   font-size: 13px;
 }
 .dev-attach-label { flex: 1; }
+
+/* ── 事件地塊分頁 ─────────────────────────────────────────── */
+#dev-tiles-left {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 380px; min-width: 280px;
+}
+#dev-tiles-right {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 300px; min-width: 260px;
+}
+#dev-tab-tiles code {
+  background: #060a14; border: 1px solid #1e3560; border-radius: 4px;
+  padding: 1px 5px; color: #c8a8f8;
+  font-family: "Consolas", "Menlo", monospace; font-size: 11px;
+}
+#dev-tile-color {
+  flex: none; width: 42px; height: 30px; padding: 2px; cursor: pointer;
+}
+#dev-tile-code { flex: none; width: 90px; }
+#dev-tiles-toolbar { display: flex; align-items: center; gap: 12px; }
+#dev-tiles-status { font-size: 12px; flex: 1; }
+#dev-tiles-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 240px; overflow-y: auto;
+}
+#dev-tiles-export-code {
+  flex: 1; min-height: 150px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
 
 /* ── 物品生成器分頁 ───────────────────────────────────────── */
 #dev-items-left {
@@ -2086,13 +2095,6 @@ body {
   flex: none; margin-right: 4px;
 }
 .dev-bag-use:hover { background: #1e7be0; }
-#dev-items-doc pre {
-  background: #060a14; border: 1px solid #1e3560; border-radius: 8px;
-  padding: 10px; overflow-x: auto;
-  font-family: "Consolas", "Menlo", monospace;
-  font-size: 11px; line-height: 1.6; color: #a0b8d8;
-  white-space: pre;
-}
 
 /* ── 地圖編輯分頁 ─────────────────────────────────────────── */
 #dev-map-left {

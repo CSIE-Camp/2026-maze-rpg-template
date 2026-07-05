@@ -1,24 +1,25 @@
 // ============================================================
 //  dev_panel.js ── 開發模式面板（Live Preview）
 //
-//  分頁一「事件程式碼」：
-//    學員在左側寫事件函式 → 按「套用」直接生效；
-//    把角色走到目標格 → 按「掛接在目前位置」→ 該格自動變成事件地塊
-//    （覆蓋原本的地塊），並使用學員指定的顏色與圖示。
-//    「快速加入」可一鍵生成傳送門 / 寶箱 / 商店的範本事件。
+//  分頁「事件程式碼」：
+//    學員在左側寫事件函式 → 按「套用」直接生效；匯出後貼到 events.js。
 //
-//  分頁二「地圖編輯」：
-//    直接在網頁上點格子畫地圖，可套用到遊戲中並匯出 map.js 程式碼。
+//  分頁「事件地塊」：
+//    自訂事件地塊（編號 10~255，由學員自行指定，避免撞號），
+//    設定名稱、顏色、圖示與事件函式；匯出後貼到 tile.js。
+//    定義好的地塊會出現在「地圖編輯」的筆刷清單。
+//
+//  分頁「地圖編輯」：
+//    直接在網頁上點格子畫地圖（含出生點），可套用到遊戲中並匯出 map.js。
+//
+//  分頁「物品生成器」「結局編輯」：
+//    產生 game.bag.push(...) 程式碼／設計結局（匯出貼到 endings.js）。
 // ============================================================
 
 var DEV_STORE_CODE    = "hackathon_dev_code";
-var DEV_STORE_EVENTS  = "hackathon_dev_events";
 var DEV_STORE_MAP     = "hackathon_dev_map";
 var DEV_STORE_ENDINGS = "hackathon_dev_endings";
-
-// 事件地塊的預設外觀（圖示為 assets/picture/ 路徑，空字串代表無圖示）
-var DEV_EVENT_DEFAULT_ICON  = "";
-var DEV_EVENT_DEFAULT_COLOR = "#5a3890";
+var DEV_STORE_TILES   = "hackathon_dev_tiles";
 
 // 紀錄所有內建的 window 函式，用來區分後載入的 events.js 裡宣告的學員函式
 var builtinFunctions = new Set();
@@ -30,21 +31,22 @@ for (var key in window) {
   } catch (e) {}
 }
 
-// events.js 宣告的學員函式集合，以及 events.js 內建的初始掛接表
+// events.js 宣告的學員函式集合
 var eventsJsFunctions = new Set();
-var initialTileEvents = {};
+
+// tile.js 的初始地塊定義（清除暫存時還原）
+var initialTileDefs = {};
 
 // 追蹤當前正在執行的程式碼，以及上一次成功套用的程式碼，用以實現「返回上一次套用」
 var currentlyRunningCode = "";
 var lastAppliedCode = null;
 
-// events.js 中扣除 var tileEvents / var gameEndings 宣告後的純函式程式碼
+// events.js 的初始程式碼（去掉標頭註解後）
 var _initialEventsCode = DEV_DEFAULT_CODE;
 
-// 掛接表："x,y" → { fn: 函式名稱, icon: 圖示, color: 顏色 }
-// （存名字字串而非函式參照，重新套用程式碼後自動綁到新版函式）
-if (typeof tileEvents === "undefined") {
-  var tileEvents = {};
+// 事件地塊定義表（tile.js 提供；此處保底宣告）
+if (typeof tileDefs === "undefined") {
+  var tileDefs = {};
 }
 
 // 結局表：[{ name: "結局名稱", condition: "JS 表達式", html: "HTML 內容" }, ...]
@@ -60,73 +62,20 @@ var DEV_DEFAULT_CODE =
   '  game.message = "💥 你踩到陷阱了！";\n' +
   '}\n';
 
-// ── 掛接表工具 ────────────────────────────────────────────────
-// 舊格式（值是字串）→ 新格式（物件），讓舊的 localStorage / events.js 不會壞
-function _isValidIcon(icon) {
-  return typeof icon === "string" && icon.indexOf("assets/") === 0;
-}
-
-function _normalizeTileEvents() {
-  for (var k in tileEvents) {
-    var v = tileEvents[k];
-    if (typeof v === "string") {
-      tileEvents[k] = { fn: v, icon: DEV_EVENT_DEFAULT_ICON, color: DEV_EVENT_DEFAULT_COLOR };
-    } else if (v && typeof v === "object") {
-      // 若 icon 不是有效的圖片路徑（例如舊版 emoji），清空為預設
-      if (!_isValidIcon(v.icon)) v.icon = DEV_EVENT_DEFAULT_ICON;
-      if (!v.color) v.color = DEV_EVENT_DEFAULT_COLOR;
-    }
-  }
-}
-
-// 把掛接表中的每一格蓋上事件地塊（restartGame / 套用地圖後也會呼叫）
-function syncEventTiles() {
-  if (typeof currentMap === "undefined" || typeof MAP_TILE === "undefined") return;
-  for (var k in tileEvents) {
-    var p = k.split(",");
-    var x = parseInt(p[0], 10), y = parseInt(p[1], 10);
-    if (y >= 0 && y < currentMap.length && x >= 0 && x < currentMap[y].length) {
-      currentMap[y][x] = MAP_TILE.EVENT;
-    }
-  }
-}
-
-// 學員 API：移除某一格的事件（事件地塊變回空地）。適合做「只能觸發一次」的事件。
-function removeEventAt(x, y) {
-  removeTileEvent(x + "," + y);
-}
-
-// ── 事件分派（由 checkTileEvent 呼叫，只在事件地塊上觸發）──────
-function dispatchCustomTileEvent(x, y) {
-  var entry = tileEvents[x + "," + y];
-  if (!entry) return;
-  var name = (typeof entry === "string") ? entry : entry.fn;
-  var fn = window[name];
-  if (typeof fn !== "function") {
-    showMapMessage("💥 找不到事件函式「" + name + "」，記得先按「套用程式碼」！");
-    return;
-  }
-  try {
-    fn();
-  } catch (e) {
-    showMapMessage("💥 事件發生錯誤：" + e.message);
-  }
-}
-
 // ── 面板開關 ──────────────────────────────────────────────────
 function openDevPanel() {
   var overlay = document.getElementById("dev-panel-overlay");
   if (!overlay) return;
   overlay.style.display = "flex";
-  _updateDevPosition();
-  _refreshFnSelect();
-  _renderAttachList();
   _renderExport();
   _renderDevMapGrid();
   _renderMapExport();
   _refreshItemFnSelect();
   _renderItemExport();
   _renderDevItemsBagList();
+  _refreshTileFnSelect();
+  _renderTileDefsList();
+  _renderTileExport();
 }
 
 function closeDevPanel() {
@@ -141,7 +90,7 @@ function isDevPanelOpen() {
 
 // ── 分頁切換 ──────────────────────────────────────────────────
 function switchDevTab(name) {
-  var tabs = ["events", "map", "items", "endings"];
+  var tabs = ["events", "tiles", "map", "items", "endings"];
   for (var i = 0; i < tabs.length; i++) {
     var page = document.getElementById("dev-tab-" + tabs[i]);
     var btn  = document.getElementById("dev-tab-btn-" + tabs[i]);
@@ -149,6 +98,7 @@ function switchDevTab(name) {
     if (page) page.style.display = active ? "flex" : "none";
     if (btn)  btn.className = "dev-tab-btn" + (active ? " dev-tab-btn--active" : "");
   }
+  if (name === "tiles") { _refreshTileFnSelect(); _renderTileDefsList(); _renderTileExport(); }
   if (name === "map") { _renderDevMapGrid(); _renderMapExport(); }
   if (name === "items") { _refreshItemFnSelect(); _renderItemExport(); _renderDevItemsBagList(); }
   if (name === "endings") { _renderEndingsList(); _renderEndingsExport(); }
@@ -173,10 +123,6 @@ function _detectEventsJsFunctions() {
         eventsJsFunctions.add(key);
       }
     } catch (e) {}
-  }
-  if (typeof tileEvents !== "undefined") {
-    _normalizeTileEvents();
-    initialTileEvents = JSON.parse(JSON.stringify(tileEvents));
   }
 }
 
@@ -223,29 +169,18 @@ function revertLastDevCode() {
 }
 
 function clearDevState() {
-  if (!confirm("確定要清除開發面板的暫存程式碼與掛接事件嗎？\n這將還原為 events.js 的內容。")) return;
+  if (!confirm("確定要清除開發面板的暫存程式碼、自訂地塊與結局嗎？\n這將還原為 events.js / tile.js / endings.js 的內容。")) return;
 
   try {
     localStorage.removeItem(DEV_STORE_CODE);
-    localStorage.removeItem(DEV_STORE_EVENTS);
+    localStorage.removeItem(DEV_STORE_TILES);
     localStorage.removeItem(DEV_STORE_ENDINGS);
   } catch (e) {}
   gameEndings = [];
+  tileDefs = JSON.parse(JSON.stringify(initialTileDefs));
 
   var editor = document.getElementById("dev-code-editor");
   if (editor) editor.value = _initialEventsCode;
-
-  // 把目前掛接表的事件地塊還原為空地，再換回 events.js 的初始掛接表
-  for (var k in tileEvents) {
-    var p = k.split(",");
-    var x = parseInt(p[0], 10), y = parseInt(p[1], 10);
-    if (y >= 0 && y < currentMap.length && x >= 0 && x < currentMap[y].length &&
-        currentMap[y][x] === MAP_TILE.EVENT) {
-      currentMap[y][x] = MAP_TILE.EMPTY;
-    }
-  }
-  tileEvents = JSON.parse(JSON.stringify(initialTileEvents));
-  syncEventTiles();
 
   _cleanupDeletedFunctions(currentlyRunningCode, _initialEventsCode);
   currentlyRunningCode = _initialEventsCode;
@@ -258,10 +193,12 @@ function clearDevState() {
     (0, eval)(currentlyRunningCode);
   } catch (e) {}
 
-  _setDevStatus("🗑️ 已清除暫存，已還原為 events.js 內容", false);
-  _refreshFnSelect();
-  _renderAttachList();
+  _setDevStatus("🗑️ 已清除暫存，已還原為 events.js / tile.js 內容", false);
   _renderExport();
+  _rebuildMapPalette();
+  _refreshTileFnSelect();
+  _renderTileDefsList();
+  _renderTileExport();
   renderMap();
 }
 
@@ -287,12 +224,11 @@ function applyDevCode() {
     _setDevStatus("❌ " + e.message, true);
     return;
   }
-  _refreshFnSelect();
   _refreshItemFnSelect();
+  _refreshTileFnSelect();
   _renderItemExport();
   _renderExport();
   _saveDevState();
-  _renderAttachList();
   renderMap();
 }
 
@@ -309,18 +245,17 @@ function _scanFunctionNames(code) {
   return names;
 }
 
-function _refreshFnSelect() {
-  var sel = document.getElementById("dev-fn-select");
+// 把編輯器裡宣告的函式列進下拉選單（供事件地塊 / 物品生成器選用）
+function _fillFnSelect(sel, emptyLabel) {
   if (!sel) return;
+  var editor = document.getElementById("dev-code-editor");
+  if (!editor) return;
   var prev  = sel.value;
-  var names = _scanFunctionNames(document.getElementById("dev-code-editor").value);
+  var names = _scanFunctionNames(editor.value);
   sel.innerHTML = "";
-  if (names.length === 0) {
-    var opt = document.createElement("option");
-    opt.value = ""; opt.textContent = "（還沒有函式，先寫好按套用）";
-    sel.appendChild(opt);
-    return;
-  }
+  var none = document.createElement("option");
+  none.value = ""; none.textContent = emptyLabel;
+  sel.appendChild(none);
   for (var i = 0; i < names.length; i++) {
     var o = document.createElement("option");
     o.value = names[i]; o.textContent = names[i];
@@ -329,353 +264,13 @@ function _refreshFnSelect() {
   if (names.indexOf(prev) !== -1) sel.value = prev;
 }
 
-// ── 掛接 ──────────────────────────────────────────────────────
-function _updateDevPosition() {
-  var el = document.getElementById("dev-position");
-  if (el) el.textContent = "目前位置：(" + player.x + ", " + player.y + ")";
-}
-
-function updateIconPreview() {
-  var sel  = document.getElementById("dev-event-icon");
-  var prev = document.getElementById("dev-event-icon-preview");
-  if (!sel || !prev) return;
-  if (sel.value) {
-    prev.src = sel.value;
-    prev.style.display = "inline";
-  } else {
-    prev.style.display = "none";
-  }
-}
-
-function _readEventStyleInputs() {
-  var iconEl  = document.getElementById("dev-event-icon");
-  var colorEl = document.getElementById("dev-event-color");
-  return {
-    icon:  (iconEl && iconEl.value)   ? iconEl.value   : DEV_EVENT_DEFAULT_ICON,
-    color: (colorEl && colorEl.value) ? colorEl.value  : DEV_EVENT_DEFAULT_COLOR
-  };
-}
-
-// 把函式掛接到 (x, y)：寫入掛接表 + 該格覆蓋為事件地塊
-function _attachAt(x, y, name, icon, color) {
-  tileEvents[x + "," + y] = { fn: name, icon: icon, color: color };
-  if (y >= 0 && y < currentMap.length && x >= 0 && x < currentMap[y].length) {
-    currentMap[y][x] = MAP_TILE.EVENT;   // 覆蓋原本的地塊
-  }
-  _renderAttachList();
-  _renderExport();
-  _saveDevState();
-  renderMap();
-}
-
-function attachEventHere() {
-  var sel  = document.getElementById("dev-fn-select");
-  var name = sel ? sel.value : "";
-  if (!name) { _setDevStatus("❌ 請先寫好函式並按「套用程式碼」", true); return; }
-  if (typeof window[name] !== "function") {
-    _setDevStatus("❌ 函式「" + name + "」還沒生效，先按「套用程式碼」", true);
-    return;
-  }
-  var style = _readEventStyleInputs();
-  _attachAt(player.x, player.y, name, style.icon, style.color);
-  _setDevStatus("✅ 已把 " + name + " 掛接在 (" + player.x + ", " + player.y + ")，該格已變為事件地塊", false);
-}
-
-function removeTileEvent(key) {
-  delete tileEvents[key];
-  // 事件地塊變回空地
-  var p = key.split(",");
-  var x = parseInt(p[0], 10), y = parseInt(p[1], 10);
-  if (typeof currentMap !== "undefined" &&
-      y >= 0 && y < currentMap.length && x >= 0 && x < currentMap[y].length &&
-      currentMap[y][x] === MAP_TILE.EVENT) {
-    currentMap[y][x] = MAP_TILE.EMPTY;
-  }
-  _renderAttachList();
-  _renderExport();
-  _saveDevState();
-  renderMap();
-}
-
-function _renderAttachList() {
-  var list = document.getElementById("dev-attach-list");
-  if (!list) return;
-  var keys = Object.keys(tileEvents);
-  if (keys.length === 0) {
-    list.innerHTML = '<div class="dev-attach-empty">還沒有掛接任何事件</div>';
-    return;
-  }
-  list.innerHTML = "";
-
-  // 掃描編輯器內已宣告的函式
-  var editorVal = document.getElementById("dev-code-editor").value;
-  var declaredFunctions = _scanFunctionNames(editorVal);
-
-  for (var i = 0; i < keys.length; i++) {
-    var key = keys[i];
-    var entry = tileEvents[key];
-    var fnName = (typeof entry === "string") ? entry : entry.fn;
-    var isInvalid = (declaredFunctions.indexOf(fnName) === -1 &&
-                     typeof window[fnName] !== "function");
-
-    var row = document.createElement("div");
-    row.className = "dev-attach-row" + (isInvalid ? " dev-attach-row--invalid" : "");
-
-    var swatch = document.createElement("span");
-    swatch.className = "dev-attach-swatch";
-    swatch.style.background = (entry && entry.color) || DEV_EVENT_DEFAULT_COLOR;
-    if (entry && _isValidIcon(entry.icon)) {
-      var swImg = document.createElement("img");
-      swImg.src = entry.icon; swImg.alt = "";
-      swImg.style.cssText = "width:20px;height:20px;object-fit:contain;";
-      swatch.appendChild(swImg);
-    }
-
-    var label = document.createElement("span");
-    label.className = "dev-attach-label";
-    if (isInvalid) {
-      label.innerHTML = "(" + key + ") → " + fnName + ' <span class="dev-attach-invalid-label">(⚠️ 目前無效)</span>';
-    } else {
-      label.textContent = "(" + key + ") → " + fnName;
-    }
-
-    var btn = document.createElement("button");
-    btn.className = "dev-attach-remove";
-    btn.textContent = "✕";
-    btn.onclick = (function(k) { return function() { removeTileEvent(k); }; })(key);
-
-    row.appendChild(swatch);
-    row.appendChild(label);
-    row.appendChild(btn);
-    list.appendChild(row);
-  }
-}
-
-// ── 快速加入：傳送門 / 寶箱 / 商店（用事件實作）────────────────
-var DEV_QUICK_TEMPLATES = {
-  portal: {
-    label: "傳送門", icon: "assets/picture/傳送門.png", color: "#c05010",
-    fns: ["onPortal"],
-    code: function(n) {
-      return [
-        "function onPortal" + n + "() {",
-        '  game.message = "⚡ 你踏入了傳送門！";',
-        "  game.x = 5;   // ← 改成目的地座標",
-        "  game.y = 3;",
-        "}"
-      ].join("\n");
-    }
-  },
-  chest: {
-    label: "寶箱", icon: "assets/picture/寶箱.png", color: "#c89010",
-    fns: ["onChest"],
-    code: function(n) {
-      return [
-        "function onChest" + n + "() {",
-        "  game.money += 30;",
-        '  game.message = "📦 你打開寶箱，獲得 30 金幣！";',
-        "  removeEventAt(game.x, game.y);   // 寶箱只能開一次",
-        "}"
-      ].join("\n");
-    }
-  },
-  shop: {
-    label: "商店", icon: "assets/picture/商店.png", color: "#287840",
-    fns: ["onShop", "buyPotion"],
-    code: function(n) {
-      return [
-        "function onShop" + n + "() {",
-        "  game.panel =",
-        '    "<h2>🛒 商店</h2>" +',
-        '    "<p>你身上有 " + game.money + " 金幣</p>" +',
-        '    "<button onclick=\'buyPotion' + n + '()\'>補血藥水（30 金幣，回復 30 HP）</button>" +',
-        '    "<button onclick=\\"game.panel = \'\'\\">離開</button>";',
-        "}",
-        "",
-        "function buyPotion" + n + "() {",
-        "  if (game.money >= 30) {",
-        "    game.money -= 30;",
-        "    game.hp += 30;",
-        '    game.message = "🧪 買了補血藥水！";',
-        "  } else {",
-        '    game.message = "💸 金幣不足！";',
-        "  }",
-        "  onShop" + n + "();   // 重新整理商店畫面",
-        "}"
-      ].join("\n");
-    }
-  },
-  lock: {
-    label: "上鎖的門", icon: "assets/picture/門鎖.png", color: "#604898",
-    fns: ["onLock"],
-    code: function(n) {
-      return [
-        "function onLock" + n + "() {",
-        '  if (game.hasKey' + n + ') {',
-        '    game.message = "🔓 門已經打開了！";',
-        "    return;",
-        "  }",
-        '  game.panel = \'<div style="text-align:center">\' +',
-        "    '<h2>🚪 上鎖的門</h2>' +",
-        "    '<p>這扇門被鎖住了。</p>' +",
-        "    '<button class=\"btn btn-attack\" onclick=\"unlockDoor" + n + "()\">🔑 嘗試開門（需要 10 金幣）</button> ' +",
-        "    '<button class=\"btn btn-flee\" onclick=\"game.panel=\\'\\';\">離開</button>' +",
-        "    '</div>';",
-        "}",
-        "",
-        "function unlockDoor" + n + "() {",
-        "  if (game.money >= 10) {",
-        "    game.money -= 10;",
-        "    game.hasKey" + n + " = true;",
-        "    game.setTile(game.x, game.y, 0);",
-        '    game.panel = "";',
-        '    game.message = "🔓 你花了 10 金幣打開了門！";',
-        "  } else {",
-        '    game.message = "💸 金幣不足！";',
-        '    game.panel = "";',
-        "  }",
-        "}"
-      ].join("\n");
-    }
-  },
-  minigame: {
-    label: "小遊戲", icon: "assets/picture/小遊戲靶.png", color: "#1878b0",
-    fns: ["onMiniGame"],
-    code: function(n) {
-      return [
-        "function onMiniGame" + n + "() {",
-        "  var score = 0;",
-        "  var target = 3;",
-        "",
-        "  function render() {",
-        "    var num = Math.floor(Math.random() * 10) + 1;",
-        "    game.panel =",
-        '      \'<div style="text-align:center">\' +',
-        "      '<h2>🎯 猜數字小遊戲</h2>' +",
-        "      '<p>進度：' + score + ' / ' + target + '</p>' +",
-        "      '<p>這個數字是奇數還是偶數？　答案：' + num + '</p>' +",
-        "      '<button class=\"btn btn-attack\" onclick=\"mgGuess" + n + "(' + num + ',true)\">奇數</button> ' +",
-        "      '<button class=\"btn btn-defend\" onclick=\"mgGuess" + n + "(' + num + ',false)\">偶數</button>' +",
-        "      '</div>';",
-        "  }",
-        "",
-        "  window.mgGuess" + n + " = function(num, isOdd) {",
-        "    var correct = (num % 2 === 1) === isOdd;",
-        "    if (correct) {",
-        "      score++;",
-        '      game.message = "✅ 答對了！";',
-        "      if (score >= target) {",
-        "        game.money += 30;",
-        "        game.setTile(game.x, game.y, 0);",
-        '        game.panel = \'<div style="text-align:center"><h2>🎉 過關！</h2><p>獲得 30 金幣</p>\' +',
-        "          '<button class=\"btn btn-attack\" onclick=\"game.panel=\\'\\';\">確定</button></div>';",
-        "        return;",
-        "      }",
-        "    } else {",
-        '      game.message = "❌ 答錯了！";',
-        "    }",
-        "    render();",
-        "  };",
-        "",
-        "  render();",
-        "}"
-      ].join("\n");
-    }
-  },
-  battle: {
-    label: "小怪戰鬥", icon: "assets/picture/哥布林.png", color: "#b83030",
-    fns: ["onBattle", "battleAtk", "battleRun"],
-    code: function(n) {
-      return [
-        "function onBattle" + n + "() {",
-        '  var enemy = { name: "哥布林", hp: 30, atk: 5 };',
-        "",
-        "  function render() {",
-        "    game.panel =",
-        '      \'<div style="text-align:center">\' +',
-        "      '<h2>⚔️ ' + enemy.name + '</h2>' +",
-        "      '<p>敵人 HP：' + enemy.hp + '</p>' +",
-        "      '<p>你的 HP：' + game.hp + ' / ' + game.maxHp + '</p><hr>' +",
-        "      '<button class=\"btn btn-attack\" onclick=\"battleAtk" + n + "()\">⚔️ 攻擊</button> ' +",
-        "      '<button class=\"btn btn-flee\" onclick=\"battleRun" + n + "()\">💨 逃跑</button>' +",
-        "      '</div>';",
-        "  }",
-        "",
-        "  window.battleAtk" + n + " = function() {",
-        "    enemy.hp -= Math.max(1, game.atk - 2);",
-        "    if (enemy.hp <= 0) {",
-        "      game.money += 15;",
-        "      game.setTile(game.x, game.y, 0);",
-        '      game.panel = \'<div style="text-align:center"><h2>🎉 勝利！</h2><p>獲得 15 金幣</p>\' +',
-        "        '<button class=\"btn btn-attack\" onclick=\"game.panel=\\'\\';\">確定</button></div>';",
-        "      return;",
-        "    }",
-        "    game.hp -= enemy.atk;",
-        "    render();",
-        "  };",
-        "",
-        "  window.battleRun" + n + " = function() {",
-        '    game.message = "你逃跑了！";',
-        '    game.panel = "";',
-        "  };",
-        "",
-        "  render();",
-        "}"
-      ].join("\n");
-    }
-  }
-};
-
-function quickAddEvent(type) {
-  var tpl = DEV_QUICK_TEMPLATES[type];
-  if (!tpl) return;
-  var editor = document.getElementById("dev-code-editor");
-
-  // 找一個沒被用過的編號（onPortal1、onPortal2…）
-  var used = _scanFunctionNames(editor.value);
-  var n = 1;
-  while (true) {
-    var taken = tpl.fns.some(function(f) { return used.indexOf(f + n) !== -1; });
-    if (!taken) break;
-    n++;
-  }
-
-  // 1. 自動 append 範本函式到文字框
-  var sep = editor.value.trim() === "" ? "" : "\n\n";
-  editor.value = editor.value + sep + tpl.code(n) + "\n";
-
-  // 2. 套用程式碼
-  applyDevCode();
-
-  // 3. 用範本預設的圖示與顏色，掛接在目前位置（自動覆蓋地塊）
-  var iconEl  = document.getElementById("dev-event-icon");
-  var colorEl = document.getElementById("dev-event-color");
-  if (iconEl)  { iconEl.value = tpl.icon; updateIconPreview(); }
-  if (colorEl) colorEl.value = tpl.color;
-  var mainFn = tpl.fns[0] + n;
-  _attachAt(player.x, player.y, mainFn, tpl.icon, tpl.color);
-
-  _setDevStatus("✅ 已加入" + tpl.label + "事件 " + mainFn + "，並掛接在 (" + player.x + ", " + player.y + ")", false);
-}
-
 // ── 匯出 events.js ────────────────────────────────────────────
 function _buildExportCode() {
-  var lines = [
-    "// ==== events.js（把這整段複製到你的專案）====",
-    "var tileEvents = {"
-  ];
-  var keys = Object.keys(tileEvents);
-  for (var i = 0; i < keys.length; i++) {
-    var e = tileEvents[keys[i]];
-    var fnName = (typeof e === "string") ? e : e.fn;
-    var icon   = (e && e.icon)  || DEV_EVENT_DEFAULT_ICON;
-    var color  = (e && e.color) || DEV_EVENT_DEFAULT_COLOR;
-    lines.push('  "' + keys[i] + '": { fn: "' + fnName + '", icon: "' + icon + '", color: "' + color + '" },');
-  }
-  lines.push("};");
-  lines.push("");
-  lines.push(document.getElementById("dev-code-editor").value);
-  return lines.join("\n");
+  return [
+    "// ==== events.js（把這整段複製，取代 events.js 的全部內容）====",
+    "",
+    document.getElementById("dev-code-editor").value
+  ].join("\n");
 }
 
 function _renderExport() {
@@ -704,10 +299,199 @@ function _copyToClipboard(code, fallbackTextareaId) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  事件地塊分頁
+//
+//  自訂地塊：編號 10~255（由學員指定數值，避免和別人撞號），
+//  每種地塊有名稱、顏色、圖示與事件函式（寫在「事件程式碼」分頁）。
+//  定義好的地塊會出現在「地圖編輯」的筆刷清單，可以直接畫上地圖。
+// ══════════════════════════════════════════════════════════════
+
+function _setDevTilesStatus(msg, isError) {
+  var el = document.getElementById("dev-tiles-status");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = isError ? "dev-status-error" : "dev-status-ok";
+}
+
+function _refreshTileFnSelect() {
+  _fillFnSelect(document.getElementById("dev-tile-fn"), "（無事件）");
+}
+
+function updateTileIconPreview() {
+  var sel  = document.getElementById("dev-tile-icon");
+  var prev = document.getElementById("dev-tile-icon-preview");
+  if (!sel || !prev) return;
+  if (sel.value) {
+    prev.src = sel.value;
+    prev.style.display = "inline";
+  } else {
+    prev.style.display = "none";
+  }
+}
+
+function addOrUpdateTileDef() {
+  var codeEl  = document.getElementById("dev-tile-code");
+  var nameEl  = document.getElementById("dev-tile-name");
+  var colorEl = document.getElementById("dev-tile-color");
+  var iconEl  = document.getElementById("dev-tile-icon");
+  var fnEl    = document.getElementById("dev-tile-fn");
+
+  var code = parseInt(codeEl ? codeEl.value : "", 10);
+  if (isNaN(code) || code < 10 || code > 255) {
+    _setDevTilesStatus("❌ 地塊編號必須是 10 ~ 255 之間的整數", true);
+    return;
+  }
+  var isUpdate = !!tileDefs[code];
+  tileDefs[code] = {
+    name:  (nameEl && nameEl.value) ? nameEl.value : ("地塊 " + code),
+    color: (colorEl && colorEl.value) ? colorEl.value : "#5a3890",
+    icon:  (iconEl && iconEl.value) || "",
+    event: (fnEl && fnEl.value) || ""
+  };
+  _saveDevTiles();
+  _renderTileDefsList();
+  _renderTileExport();
+  _rebuildMapPalette();
+  renderMap();
+  _setDevTilesStatus((isUpdate ? "✅ 已更新" : "✅ 已新增") + "地塊 " + code + "「" + tileDefs[code].name + "」，到「地圖編輯」分頁用筆刷畫上地圖吧", false);
+}
+
+function removeTileDef(code) {
+  delete tileDefs[code];
+  _saveDevTiles();
+  _renderTileDefsList();
+  _renderTileExport();
+  _rebuildMapPalette();
+  renderMap();
+  _setDevTilesStatus("🗑️ 已移除地塊 " + code, false);
+}
+
+function _renderTileDefsList() {
+  var list = document.getElementById("dev-tiles-list");
+  if (!list) return;
+  var codes = Object.keys(tileDefs).map(Number).sort(function(a, b) { return a - b; });
+  if (codes.length === 0) {
+    list.innerHTML = '<div class="dev-attach-empty">還沒有定義任何事件地塊</div>';
+    return;
+  }
+  list.innerHTML = "";
+
+  var declaredFunctions = _scanFunctionNames(document.getElementById("dev-code-editor").value);
+
+  for (var i = 0; i < codes.length; i++) {
+    (function(code) {
+      var def = tileDefs[code];
+      var fnInvalid = def.event &&
+                      declaredFunctions.indexOf(def.event) === -1 &&
+                      typeof window[def.event] !== "function";
+
+      var row = document.createElement("div");
+      row.className = "dev-attach-row" + (fnInvalid ? " dev-attach-row--invalid" : "");
+
+      var swatch = document.createElement("span");
+      swatch.className = "dev-attach-swatch";
+      swatch.style.background = def.color || "#5a3890";
+      if (def.icon) {
+        var swImg = document.createElement("img");
+        swImg.src = def.icon; swImg.alt = "";
+        swImg.style.cssText = "width:20px;height:20px;object-fit:contain;";
+        swatch.appendChild(swImg);
+      }
+
+      var label = document.createElement("span");
+      label.className = "dev-attach-label";
+      var fnText = def.event ? (" → " + def.event) : "（無事件）";
+      if (fnInvalid) {
+        label.innerHTML = code + " " + def.name + " → " + def.event +
+          ' <span class="dev-attach-invalid-label">(⚠️ 函式不存在)</span>';
+      } else {
+        label.textContent = code + " " + def.name + fnText;
+      }
+
+      var editBtn = document.createElement("button");
+      editBtn.className = "dev-bag-use";
+      editBtn.textContent = "編輯";
+      editBtn.onclick = function() {
+        var codeEl  = document.getElementById("dev-tile-code");
+        var nameEl  = document.getElementById("dev-tile-name");
+        var colorEl = document.getElementById("dev-tile-color");
+        var iconEl  = document.getElementById("dev-tile-icon");
+        var fnEl    = document.getElementById("dev-tile-fn");
+        if (codeEl)  codeEl.value  = code;
+        if (nameEl)  nameEl.value  = def.name || "";
+        if (colorEl) colorEl.value = def.color || "#5a3890";
+        if (iconEl)  { iconEl.value = def.icon || ""; updateTileIconPreview(); }
+        _refreshTileFnSelect();
+        if (fnEl) fnEl.value = def.event || "";
+      };
+
+      var rmBtn = document.createElement("button");
+      rmBtn.className = "dev-attach-remove";
+      rmBtn.textContent = "✕";
+      rmBtn.onclick = function() { removeTileDef(code); };
+
+      row.appendChild(swatch);
+      row.appendChild(label);
+      row.appendChild(editBtn);
+      row.appendChild(rmBtn);
+      list.appendChild(row);
+    })(codes[i]);
+  }
+}
+
+function _buildTileExportCode() {
+  var codes = Object.keys(tileDefs).map(Number).sort(function(a, b) { return a - b; });
+  var lines = ["// ==== tile.js 地塊定義（把這整段貼到 tile.js，取代 var tileDefs）===="];
+  if (codes.length === 0) {
+    lines.push("var tileDefs = {};");
+    return lines.join("\n");
+  }
+  lines.push("var tileDefs = {");
+  for (var i = 0; i < codes.length; i++) {
+    var d = tileDefs[codes[i]];
+    lines.push("  " + codes[i] + ": { name: " + JSON.stringify(d.name || "") +
+               ", color: " + JSON.stringify(d.color || "") +
+               ", icon: " + JSON.stringify(d.icon || "") +
+               ", event: " + JSON.stringify(d.event || "") + " }" +
+               (i < codes.length - 1 ? "," : ""));
+  }
+  lines.push("};");
+  return lines.join("\n");
+}
+
+function _renderTileExport() {
+  var el = document.getElementById("dev-tiles-export-code");
+  if (el) el.value = _buildTileExportCode();
+}
+
+function copyTileExportCode() {
+  _copyToClipboard(_buildTileExportCode(), "dev-tiles-export-code");
+  _setDevTilesStatus("✅ 已複製地塊定義程式碼", false);
+}
+
+function _saveDevTiles() {
+  try {
+    localStorage.setItem(DEV_STORE_TILES, JSON.stringify(tileDefs));
+  } catch (e) {}
+}
+
+function _loadDevTiles() {
+  initialTileDefs = JSON.parse(JSON.stringify(tileDefs));
+  var saved = null;
+  try { saved = localStorage.getItem(DEV_STORE_TILES); } catch (e) {}
+  if (saved) {
+    try {
+      var parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === "object") tileDefs = parsed;
+    } catch (e) {}
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 //  物品生成器分頁
 //
 //  物品格式：{ name: "藥水", effect: onPotionHeal, desc: "..." }
-//  effect 是「函式」，物品被使用時呼叫。
+//  effect 是「函式」，物品被使用時呼叫；也可以是 null（沒有效果的物品）。
 //  這個分頁幫學員：產生效果函式範本、組出 game.bag.push(...) 程式碼、
 //  並可直接把物品放進背包測試。
 // ══════════════════════════════════════════════════════════════
@@ -767,26 +551,9 @@ function _setDevItemsStatus(msg, isError) {
   el.className = isError ? "dev-status-error" : "dev-status-ok";
 }
 
-// 效果函式下拉：列出「事件程式碼」分頁裡宣告的所有函式
+// 效果函式下拉：列出「事件程式碼」分頁裡宣告的所有函式（可選「無效果」）
 function _refreshItemFnSelect() {
-  var sel = document.getElementById("dev-item-fn");
-  var editor = document.getElementById("dev-code-editor");
-  if (!sel || !editor) return;
-  var prev  = sel.value;
-  var names = _scanFunctionNames(editor.value);
-  sel.innerHTML = "";
-  if (names.length === 0) {
-    var opt = document.createElement("option");
-    opt.value = ""; opt.textContent = "（先在「事件程式碼」分頁寫函式）";
-    sel.appendChild(opt);
-    return;
-  }
-  for (var i = 0; i < names.length; i++) {
-    var o = document.createElement("option");
-    o.value = names[i]; o.textContent = names[i];
-    sel.appendChild(o);
-  }
-  if (names.indexOf(prev) !== -1) sel.value = prev;
+  _fillFnSelect(document.getElementById("dev-item-fn"), "（無效果）");
 }
 
 // 快速範本：把效果函式加進程式碼編輯器、套用、並填好表單
@@ -823,12 +590,13 @@ function _buildItemAddCode() {
   var fnSel  = document.getElementById("dev-item-fn");
   var name = (nameEl && nameEl.value) ? nameEl.value : "神秘物品";
   var desc = (descEl && descEl.value) ? descEl.value : "";
-  var fn   = (fnSel && fnSel.value)   ? fnSel.value   : "onItemEffect";
+  var fn   = (fnSel && fnSel.value)   ? fnSel.value   : null;
   return [
     "// 把物品放進背包：原生陣列 push（effect 填函式名稱，不加括號！）",
+    "// 沒有效果的物品 effect 填 null。",
     "game.bag.push({",
     "  name: " + JSON.stringify(name) + ",",
-    "  effect: " + fn + ",",
+    "  effect: " + (fn || "null") + ",",
     "  desc: " + JSON.stringify(desc),
     "});"
   ].join("\n");
@@ -851,7 +619,7 @@ function devItemGiveToBag() {
   var descEl = document.getElementById("dev-item-desc");
   var fnName = fnSel ? fnSel.value : "";
 
-  if (!fnName || typeof window[fnName] !== "function") {
+  if (fnName && typeof window[fnName] !== "function") {
     _setDevItemsStatus("❌ 效果函式還沒生效：先按快速範本，或到「事件程式碼」分頁寫好並套用", true);
     return;
   }
@@ -859,14 +627,14 @@ function devItemGiveToBag() {
   // （原生陣列 push，跟學員在事件裡寫的一樣）
   game.bag.push({
     name: (nameEl && nameEl.value) || "神秘物品",
-    effect: function() {
+    effect: fnName ? function() {
       var fn = window[fnName];
       if (typeof fn === "function") fn();
       else game.message = "💥 找不到效果函式「" + fnName + "」，記得先按「套用程式碼」！";
-    },
+    } : null,
     desc: (descEl && descEl.value) || ""
   });
-  _setDevItemsStatus("✅ 已放進背包！關閉面板按 B 打開背包看看", false);
+  _setDevItemsStatus("✅ 已放進背包！關閉面板後看看畫面左側的背包欄", false);
   _renderDevItemsBagList();
 }
 
@@ -941,34 +709,55 @@ function _renderDevItemsBagList() {
 var _originalMapGrid    = null;
 var _originalPlayerStart = null;
 
-// 編輯中的工作副本
+// 編輯中的工作副本（devMapGrid 內不含出生點代碼，出生點另存 devPlayerStart，
+// 匯出／套用時再把 MAP_TILE.START 蓋回格子上）
 var devMapGrid     = null;
 var devPlayerStart = null;
 
 var _devMapTool  = 1;      // 目前選擇的筆刷（地塊代碼，或 "start"）
 var _devPainting = false;  // 滑鼠拖曳塗色中
 
-var DEV_MAP_TOOLS = [
-  { code: 0,       label: "空地",   color: "#2d4a7a" },
-  { code: 1,       label: "牆壁",   color: "#080d1a" },
-  { code: 3,       label: "敵人",   color: "#b83030" },
-  { code: 4,       label: "門",     color: "#604898" },
-  { code: 5,       label: "小遊戲", color: "#1878b0" },
-  { code: 9,       label: "魔王",   color: "#880010" },
-  { code: "start", label: "出生點", color: "#22e060" }
-];
+// 把格子裡的出生點代碼抽出來（回傳出生點座標；格子改為空地）
+function _extractStartFromGrid(grid, fallback) {
+  var start = null;
+  for (var y = 0; y < grid.length; y++) {
+    for (var x = 0; x < grid[y].length; x++) {
+      if (grid[y][x] === MAP_TILE.START) {
+        if (!start) start = { x: x, y: y };
+        grid[y][x] = MAP_TILE.EMPTY;
+      }
+    }
+  }
+  return start || fallback || { x: 1, y: 1 };
+}
+
+// 基本筆刷 + 已定義的事件地塊
+function _devMapTools() {
+  var tools = [
+    { code: MAP_TILE.EMPTY, label: "空地",   color: "#2d4a7a" },
+    { code: MAP_TILE.WALL,  label: "牆壁",   color: "#080d1a" },
+    { code: "start",        label: "出生點", color: "#22e060" }
+  ];
+  var codes = Object.keys(tileDefs).map(Number).sort(function(a, b) { return a - b; });
+  for (var i = 0; i < codes.length; i++) {
+    var d = tileDefs[codes[i]];
+    tools.push({ code: codes[i], label: codes[i] + " " + (d.name || "地塊"), color: d.color || "#5a3890" });
+  }
+  return tools;
+}
 
 function _devMapToolColor(code) {
-  for (var i = 0; i < DEV_MAP_TOOLS.length; i++) {
-    if (DEV_MAP_TOOLS[i].code === code) return DEV_MAP_TOOLS[i].color;
-  }
-  return "#2d4a7a";
+  if (code === MAP_TILE.EMPTY) return "#2d4a7a";
+  if (code === MAP_TILE.WALL)  return "#080d1a";
+  var d = tileDefs[code];
+  if (d && d.color) return d.color;
+  return "#e02020";   // 未定義的地塊：紅色提醒
 }
 
 function _ensureDevMap() {
   if (!devMapGrid) {
     devMapGrid     = mapGrid.map(function(r) { return r.slice(); });
-    devPlayerStart = { x: playerStart.x, y: playerStart.y };
+    devPlayerStart = _extractStartFromGrid(devMapGrid, playerStart);
   }
 }
 
@@ -981,11 +770,15 @@ function selectMapTool(code) {
   }
 }
 
-function _renderMapPalette() {
+function _rebuildMapPalette() {
   var pal = document.getElementById("dev-map-palette");
-  if (!pal || pal.childNodes.length > 0) return;  // 只建一次
-  for (var i = 0; i < DEV_MAP_TOOLS.length; i++) {
-    var t = DEV_MAP_TOOLS[i];
+  if (!pal) return;
+  pal.innerHTML = "";
+  var tools = _devMapTools();
+  var hasActive = tools.some(function(t) { return t.code === _devMapTool; });
+  if (!hasActive) _devMapTool = MAP_TILE.WALL;
+  for (var i = 0; i < tools.length; i++) {
+    var t = tools[i];
     var btn = document.createElement("button");
     btn.className = "dev-map-tool" + (t.code === _devMapTool ? " dev-map-tool--active" : "");
     btn.setAttribute("data-code", String(t.code));
@@ -1002,7 +795,7 @@ function _renderMapPalette() {
 function _paintDevMapCell(x, y) {
   if (_devMapTool === "start") {
     devPlayerStart = { x: x, y: y };
-    devMapGrid[y][x] = 0;   // 出生點必須是空地
+    devMapGrid[y][x] = MAP_TILE.EMPTY;   // 出生點必須是空地
   } else {
     devMapGrid[y][x] = _devMapTool;
   }
@@ -1014,7 +807,7 @@ function _renderDevMapGrid() {
   var container = document.getElementById("dev-map-grid");
   if (!container) return;
   _ensureDevMap();
-  _renderMapPalette();
+  _rebuildMapPalette();
 
   container.innerHTML = "";
   container.style.gridTemplateColumns = "repeat(" + devMapGrid[0].length + ", 22px)";
@@ -1023,23 +816,27 @@ function _renderDevMapGrid() {
     for (var x = 0; x < devMapGrid[y].length; x++) {
       var cell = document.createElement("div");
       cell.className = "dev-map-cell";
-      var evEntry = tileEvents[x + "," + y];
+      var code = devMapGrid[y][x];
 
       if (devPlayerStart.x === x && devPlayerStart.y === y) {
         cell.style.background = "#22e060";
         cell.textContent = "S";
-      } else if (evEntry) {
-        // 事件地塊由「事件程式碼」分頁管理，這裡顯示但照樣可以覆蓋畫格
-        cell.style.background = evEntry.color || DEV_EVENT_DEFAULT_COLOR;
-        if (_isValidIcon(evEntry.icon)) {
-          var cImg = document.createElement("img");
-          cImg.src = evEntry.icon; cImg.alt = "";
-          cImg.style.cssText = "width:16px;height:16px;object-fit:contain;";
-          cell.appendChild(cImg);
-        }
-        cell.title = "事件：" + (evEntry.fn || evEntry);
+        cell.title = "出生點";
       } else {
-        cell.style.background = _devMapToolColor(devMapGrid[y][x]);
+        cell.style.background = _devMapToolColor(code);
+        var def = tileDefs[code];
+        if (def) {
+          cell.title = code + " " + (def.name || "");
+          if (def.icon) {
+            var cImg = document.createElement("img");
+            cImg.src = def.icon; cImg.alt = "";
+            cImg.style.cssText = "width:16px;height:16px;object-fit:contain;";
+            cell.appendChild(cImg);
+          }
+        } else if (code !== MAP_TILE.EMPTY && code !== MAP_TILE.WALL) {
+          cell.textContent = "?";
+          cell.title = "編號 " + code + " 的地塊未定義（見「事件地塊」分頁）";
+        }
       }
 
       cell.setAttribute("data-x", x);
@@ -1049,12 +846,20 @@ function _renderDevMapGrid() {
   }
 }
 
-function applyDevMap() {
+// 產生含出生點代碼的完整地圖（匯出／套用共用）
+function _buildGridWithStart() {
   _ensureDevMap();
-  mapGrid     = devMapGrid.map(function(r) { return r.slice(); });
+  var grid = devMapGrid.map(function(r) { return r.slice(); });
+  if (grid[devPlayerStart.y] && grid[devPlayerStart.y][devPlayerStart.x] !== undefined) {
+    grid[devPlayerStart.y][devPlayerStart.x] = MAP_TILE.START;
+  }
+  return grid;
+}
+
+function applyDevMap() {
+  mapGrid     = _buildGridWithStart();
   playerStart = { x: devPlayerStart.x, y: devPlayerStart.y };
   currentMap  = mapGrid.map(function(r) { return r.slice(); });
-  syncEventTiles();
   // 玩家若剛好站在新畫的牆裡，移回出生點
   if (currentMap[player.y] === undefined ||
       currentMap[player.y][player.x] === MAP_TILE.WALL) {
@@ -1068,7 +873,7 @@ function applyDevMap() {
 function resetDevMap() {
   if (!confirm("確定要放棄地圖修改，還原為 map.js 的原始地圖嗎？")) return;
   devMapGrid     = _originalMapGrid.map(function(r) { return r.slice(); });
-  devPlayerStart = { x: _originalPlayerStart.x, y: _originalPlayerStart.y };
+  devPlayerStart = _extractStartFromGrid(devMapGrid, _originalPlayerStart);
   try { localStorage.removeItem(DEV_STORE_MAP); } catch (e) {}
   applyDevMap();
   _setDevMapStatus("↩️ 已還原為原始地圖", false);
@@ -1083,17 +888,15 @@ function _setDevMapStatus(msg, isError) {
 
 // ── 地圖匯出 ──────────────────────────────────────────────────
 function _buildMapExportCode() {
-  _ensureDevMap();
+  var grid = _buildGridWithStart();
   var lines = [
-    "// ==== 地圖程式碼（貼上取代 map.js 裡的 mapGrid 與 playerStart）===="
+    "// ==== 地圖程式碼（把這整段貼到 map.js，取代 var mapGrid）===="
   ];
   lines.push("var mapGrid = [");
-  for (var y = 0; y < devMapGrid.length; y++) {
-    lines.push("  [" + devMapGrid[y].join(", ") + "],");
+  for (var y = 0; y < grid.length; y++) {
+    lines.push("  [" + grid[y].join(", ") + "],");
   }
   lines.push("];");
-  lines.push("");
-  lines.push("var playerStart = { x: " + devPlayerStart.x + ", y: " + devPlayerStart.y + " };");
   return lines.join("\n");
 }
 
@@ -1217,7 +1020,7 @@ function _renderEndingsList() {
 }
 
 function _buildEndingsExportCode() {
-  var header = "// ==== 結局程式碼（把這整段貼到 events.js，取代原本的 var gameEndings）====";
+  var header = "// ==== 結局程式碼（把這整段貼到 endings.js，取代原本的 var gameEndings）====";
   if (gameEndings.length === 0) return header + "\n// 沒有設定結局\nvar gameEndings = [];";
   var lines = [header, "var gameEndings = ["];
   for (var i = 0; i < gameEndings.length; i++) {
@@ -1262,7 +1065,6 @@ function _loadDevEndings() {
 function _saveDevState() {
   try {
     localStorage.setItem(DEV_STORE_CODE, document.getElementById("dev-code-editor").value);
-    localStorage.setItem(DEV_STORE_EVENTS, JSON.stringify(tileEvents));
   } catch (e) { /* 無痕模式等情況存不了就算了 */ }
 }
 
@@ -1284,8 +1086,8 @@ function _loadDevMap() {
     var data = JSON.parse(saved);
     if (data && data.grid && data.start) {
       devMapGrid     = data.grid;
-      devPlayerStart = data.start;
-      mapGrid     = devMapGrid.map(function(r) { return r.slice(); });
+      devPlayerStart = _extractStartFromGrid(devMapGrid, data.start);
+      mapGrid     = _buildGridWithStart();
       playerStart = { x: devPlayerStart.x, y: devPlayerStart.y };
       currentMap  = mapGrid.map(function(r) { return r.slice(); });
       player.x = playerStart.x; player.y = playerStart.y;
@@ -1295,27 +1097,12 @@ function _loadDevMap() {
 
 function _loadDevState() {
   var editor = document.getElementById("dev-code-editor");
-  var code = null, events = null;
+  var code = null;
   try {
-    code   = localStorage.getItem(DEV_STORE_CODE);
-    events = localStorage.getItem(DEV_STORE_EVENTS);
+    code = localStorage.getItem(DEV_STORE_CODE);
   } catch (e) {}
   editor.value = (code !== null && code !== "") ? code : _initialEventsCode;
   currentlyRunningCode = editor.value;
-
-  if (events) {
-    try {
-      var localEvents = JSON.parse(events) || {};
-      // 合併 events.js 和 localStorage 中的掛接
-      for (var k in localEvents) {
-        tileEvents[k] = localEvents[k];
-      }
-    } catch (e) {
-      if (typeof tileEvents === "undefined") tileEvents = {};
-    }
-  }
-  _normalizeTileEvents();
-  syncEventTiles();
 
   try {
     (0, eval)(editor.value);  // 自動套用上次的程式碼
@@ -1363,9 +1150,10 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   _detectEventsJsFunctions();
+  _loadDevTiles();
   _loadDevMap();
 
-  // 從 events.js 抓取原始函式碼（去掉 var tileEvents 等宣告），再載入 dev 狀態
+  // 從 events.js 抓取原始函式碼（去掉標頭註解），再載入 dev 狀態
   fetch("events.js?v=" + Date.now(), { cache: "no-store" })
     .then(function(r) { return r.text(); })
     .then(function(text) {

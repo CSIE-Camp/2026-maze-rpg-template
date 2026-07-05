@@ -5,9 +5,6 @@
 // ============================================================
 
 
-// ── DEV_MODE：設為 false 隱藏「程式碼」和「開發模式」按鈕 ─────
-var DEV_MODE = true;
-
 // ── 偽隨機數（固定種子） ────────────────────────────────────────
 function makeRng(seed) {
   var s = (seed >>> 0) || 1;
@@ -51,7 +48,19 @@ var SESSION_SEED = Date.now() & 0xFFFFFFFF;
 
 
 // ── 全域遊戲狀態 ──────────────────────────────────────────────
+// 出生點：掃描地圖中的出生點地塊（MAP_TILE.START）
+function _findPlayerStartInGrid(grid) {
+  for (var y = 0; y < grid.length; y++) {
+    for (var x = 0; x < grid[y].length; x++) {
+      if (grid[y][x] === MAP_TILE.START) return { x: x, y: y };
+    }
+  }
+  return { x: 1, y: 1 };
+}
+var playerStart = _findPlayerStartInGrid(mapGrid);
 var player = { x: playerStart.x, y: playerStart.y };
+
+var visionRadius = 2;   // 視野半徑（渲染時由攝影機計算覆寫）
 
 var currentPlayer = {
   name:      playerStats.name,
@@ -61,7 +70,7 @@ var currentPlayer = {
   def:       playerStats.def,
   spd:       playerStats.spd  || 10,
   money:     playerStats.money,
-  keys:      playerStats.keys,
+  keys:      playerStats.keys || 0,
   skills:    (playerStats.skills || ["power_strike"]).slice(),
   inventory: [],
   tempAtk:   0,
@@ -315,6 +324,17 @@ function updateHUD() {
 function renderSideParty() {}
 
 // ── 小地圖渲染 ────────────────────────────────────────────────
+// 依地塊代碼取得小地圖顏色：空地/出生點 = 通道色、牆壁 = 深色、
+// 自訂事件地塊（10~255）用 tileDefs 定義的顏色；未定義的地塊在
+// DEV_MODE 下顯示紅色提醒開發者。
+function _miniMapTileColor(code) {
+  if (code === MAP_TILE.WALL) return "#080d1a";
+  if (code === MAP_TILE.EMPTY || code === MAP_TILE.START) return "#2d4a7a";
+  var def = (typeof tileDefs !== "undefined") ? tileDefs[code] : null;
+  if (def && def.color) return def.color;
+  return DEV_MODE ? "#e02020" : "#2d4a7a";
+}
+
 function renderMiniMap() {
   var canvas = document.getElementById("minimap-canvas");
   if (!canvas || !canvas.getContext) return;
@@ -328,11 +348,6 @@ function renderMiniMap() {
   var CELL   = 9;
   canvas.width  = VIEW * CELL;
   canvas.height = VIEW * CELL;
-
-  var TC = {};
-  TC[MAP_TILE.EMPTY]      = "#2d4a7a";
-  TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.EVENT]      = "#5a3890";
 
   for (var dy = -RADIUS; dy <= RADIUS; dy++) {
     for (var dx = -RADIUS; dx <= RADIUS; dx++) {
@@ -351,12 +366,7 @@ function renderMiniMap() {
         var isVisible  = dist <= visionRadius;
         var isExplored = visitedTiles.indexOf(mx + "," + my) !== -1;
         if (isVisible || isExplored) {
-          color = TC[currentMap[my][mx]] || "#2d4a7a";
-          // 事件地塊用學員自訂的顏色
-          if (currentMap[my][mx] === MAP_TILE.EVENT && typeof tileEvents !== "undefined") {
-            var _ev = tileEvents[mx + "," + my];
-            if (_ev && _ev.color) color = _ev.color;
-          }
+          color = _miniMapTileColor(currentMap[my][mx]);
         } else {
           color = "#050810";
         }
@@ -384,11 +394,6 @@ function renderMiniMapLarge() {
   canvas.width  = cols * CELL;
   canvas.height = rows * CELL;
 
-  var TC = {};
-  TC[MAP_TILE.EMPTY]      = "#2d4a7a";
-  TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.EVENT]      = "#5a3890";
-
   for (var y = 0; y < rows; y++) {
     for (var x = 0; x < cols; x++) {
       var isPlayer   = (x === player.x && y === player.y);
@@ -400,12 +405,7 @@ function renderMiniMapLarge() {
       if (isPlayer) {
         color = "#22e060";
       } else if (isVisible || isExplored) {
-        color = TC[currentMap[y][x]] || "#2d4a7a";
-        // 事件地塊用學員自訂的顏色
-        if (currentMap[y][x] === MAP_TILE.EVENT && typeof tileEvents !== "undefined") {
-          var _ev2 = tileEvents[x + "," + y];
-          if (_ev2 && _ev2.color) color = _ev2.color;
-        }
+        color = _miniMapTileColor(currentMap[y][x]);
       } else {
         color = "#050810";
       }
@@ -530,18 +530,6 @@ function renderBagSidebar() {
     row.appendChild(desc);
     list.appendChild(row);
   });
-}
-
-function openInventory() {
-  var panel = document.getElementById("map-bag");
-  if (!panel) return;
-  panel.style.display = "flex";
-  renderBagSidebar();
-}
-
-function closeInventory() {
-  var panel = document.getElementById("map-bag");
-  if (panel) panel.style.display = "none";
 }
 
 // ── 設定 Overlay ──────────────────────────────────────────────
@@ -984,7 +972,8 @@ function onUseItem(idx) {
   try {
     if (typeof item.effect === "function") {
       item.effect();
-    } else {
+    } else if (item.effect != null) {
+      // effect 可以是 null（沒有效果的物品）；有填但不是函式才提醒
       logMessage("💥 「" + item.name + "」的 effect 不是函式，什麼事都沒發生。");
     }
   } catch (e) {
@@ -1263,49 +1252,49 @@ function applyCameraTransform() {
   visionRadius = Math.ceil(half);
 }
 
+// 未定義地塊：每個編號只提示一次
+var _warnedUnknownTiles = {};
+function _warnUnknownTile(code) {
+  if (_warnedUnknownTiles[code]) return;
+  _warnedUnknownTiles[code] = true;
+  showMapMessage("⚠️ 你指定了編號 " + code + " 的地塊，但找不到這個地塊。");
+}
+
 function applyTileStyle(tile, tileType, x, y) {
-  // 事件地塊：顏色與圖示由學員設定（tileEvents 表，見 dev_panel.js / events.js）
-  if (tileType === MAP_TILE.EVENT) {
+  if (tileType === MAP_TILE.WALL) { tile.classList.add("tile--wall"); return; }
+  if (tileType === MAP_TILE.EMPTY || tileType === MAP_TILE.START) {
+    tile.classList.add("tile--empty"); return;
+  }
+
+  // 自訂事件地塊（10~255）：外觀由 tile.js 的 tileDefs 定義
+  var def = (typeof tileDefs !== "undefined") ? tileDefs[tileType] : null;
+  if (def) {
     tile.classList.add("tile--event");
-    var meta = (typeof tileEvents !== "undefined") ? tileEvents[x + "," + y] : null;
-    if (meta && typeof meta === "object") {
-      if (meta.color) tile.style.background = meta.color;
-      if (meta.icon) {
-        var iconImg = document.createElement("img");
-        iconImg.src = meta.icon; iconImg.alt = ""; iconImg.className = "sprite";
-        tile.appendChild(iconImg);
-      }
+    if (def.color) tile.style.background = def.color;
+    if (def.icon) {
+      var iconImg = document.createElement("img");
+      iconImg.src = def.icon; iconImg.alt = ""; iconImg.className = "sprite";
+      tile.appendChild(iconImg);
     }
     return;
   }
 
-  var sm = {};
-  sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  // 寶箱(2)/商店(6)/傳送門(8) 不再是特殊地塊：未列入 sm，會落到下方 fallback 當作空地
-
-  var info = sm[tileType];
-  if (!info) { tile.classList.add("tile--empty"); return; }
-  tile.classList.add(info.cls);
-  if (info.src) {
-    var img = document.createElement("img");
-    img.src = info.src; img.alt = info.alt; img.className = "sprite";
-    img.onerror = function() {
-      if (img.parentNode) img.parentNode.removeChild(img);
-      if (info.emoji) { var sp = document.createElement("span"); sp.className = "tile-emoji"; sp.textContent = info.emoji; tile.appendChild(sp); }
-    };
-    tile.appendChild(img);
-  } else if (info.emoji) {
-    var sp = document.createElement("span");
-    sp.className = "tile-emoji"; sp.textContent = info.emoji;
-    tile.appendChild(sp);
+  // 未定義的地塊：一般模式當空白格；DEV_MODE 標紅提醒開發者
+  if (DEV_MODE) {
+    tile.classList.add("tile--unknown");
+    var mark = document.createElement("span");
+    mark.className = "tile-emoji";
+    mark.textContent = "?";
+    tile.appendChild(mark);
+    _warnUnknownTile(tileType);
+  } else {
+    tile.classList.add("tile--empty");
   }
 }
 
 // ── 鍵盤移動 ─────────────────────────────────────────────────
 function closeAnyOverlay() {
   var minimapOverlay   = document.getElementById("minimap-overlay");
-  var bagPanel         = document.getElementById("map-bag");
   var inspectPanel     = document.getElementById("inspect-panel");
   var shopScreen       = document.getElementById("screen-shop");
   var settingsOverlay  = document.getElementById("settings-overlay");
@@ -1316,7 +1305,6 @@ function closeAnyOverlay() {
   if (eventPanel       && eventPanel.style.display       !== "none") { game.panel = "";       return true; }
   if (settingsOverlay  && settingsOverlay.style.display  !== "none") { closeSettings();       return true; }
   if (minimapOverlay   && minimapOverlay.style.display   !== "none") { closeMiniMapOverlay(); return true; }
-  if (bagPanel         && bagPanel.style.display         !== "none") { closeInventory();      return true; }
   if (inspectPanel     && inspectPanel.style.display     !== "none") { hideEnemyInfo();       return true; }
   if (shopScreen       && shopScreen.style.display       !== "none") { closeShop();           return true; }
   return false;
@@ -1325,7 +1313,7 @@ function closeAnyOverlay() {
 function updateControlsHint() {
   var el = document.getElementById("controls-hint");
   if (!el) return;
-  el.textContent = "WASD / ↑↓←→ 移動　M 地圖　B 背包" +
+  el.textContent = "WASD / ↑↓←→ 移動　M 地圖" +
                    (shopUnlocked ? "　F 商店" : "") +
                    "　ESC 設定　C 關閉";
 }
@@ -1365,7 +1353,6 @@ document.addEventListener("keydown", function(e) {
   if (typeof isDevPanelOpen === "function" && isDevPanelOpen()) return;
 
   if (e.key === "m" || e.key === "M") { openMiniMapOverlay(); return; }
-  if (e.key === "b" || e.key === "B") { openInventory();      return; }
   if ((e.key === "f" || e.key === "F") && shopUnlocked) { openShop(); return; }
 
   var dx = 0, dy = 0;
@@ -1410,77 +1397,43 @@ function checkDialogueTriggers(x, y) {
   }
 }
 
+// 呼叫事件函式（依名稱到 window 上找，錯誤時顯示提示）
+function _callTileEventFn(name) {
+  var fn = window[name];
+  if (typeof fn !== "function") {
+    showMapMessage("💥 找不到事件函式「" + name + "」，記得先按「套用程式碼」！");
+    return;
+  }
+  try {
+    fn();
+  } catch (e) {
+    showMapMessage("💥 事件發生錯誤：" + e.message);
+  }
+}
+
 function checkTileEvent(x, y) {
+  // 1. 座標掛接表（map.js 的 tileEvents，優先於地塊本身的事件）
+  if (typeof tileEvents !== "undefined") {
+    var entry = tileEvents[x + "," + y];
+    if (entry) {
+      _callTileEventFn(typeof entry === "string" ? entry : entry.fn);
+      return;
+    }
+  }
+
+  // 2. 自訂事件地塊（10~255，定義在 tile.js）
   var t = currentMap[y][x];
-  if (t === MAP_TILE.EVENT && typeof dispatchCustomTileEvent === "function") {
-    dispatchCustomTileEvent(x, y);
+  if (t < 10) return;
+  var def = (typeof tileDefs !== "undefined") ? tileDefs[t] : null;
+  if (!def) {
+    if (DEV_MODE) _warnUnknownTile(t);
+    return;
   }
+  if (def.event) _callTileEventFn(def.event);
 }
-
-function _findPortalDestination(x, y) {
-  for (var pid in portals) {
-    var pair = portals[pid];
-    if (pair.length === 2) {
-      if (pair[0][0] === y && pair[0][1] === x) return { x: pair[1][1], y: pair[1][0] };
-      if (pair[1][0] === y && pair[1][1] === x) return { x: pair[0][1], y: pair[0][0] };
-    }
-  }
-  return null;
-}
-
-function triggerPortal(x, y) {
-  var dest = _findPortalDestination(x, y);
-  if (dest) {
-    player.x = dest.x;
-    player.y = dest.y;
-    renderMap();
-    playSound("teleport");
-    logMessage("你踏入了傳送門，瞬間移動到另一個地點！");
-  } else {
-    showMapMessage("傳送門似乎尚未連接任何地點...");
-  }
-}
-
-function triggerChest(x, y) {
-  var reward = chestRewards[Math.floor(Math.random() * chestRewards.length)];
-  playSound("chest");
-  if (reward.money) updatePlayerMoney(reward.money);
-  if (reward.hp)    updatePlayerHp(reward.hp);
-  if (reward.atk)   updatePlayerAtk(reward.atk);
-  if (reward.def)   updatePlayerDef(reward.def);
-  if (reward.reviveAlly) {
-    var dead = currentAllies.filter(function(a) { return a.knockedOut; });
-    if (dead.length > 0) {
-      dead[0].hp = Math.max(1, Math.floor(dead[0].maxHp / 2));
-      dead[0].knockedOut = false;
-      showMapMessage("📦 " + reward.message + "「" + dead[0].name + "」已復活！");
-    } else {
-      showMapMessage("📦 " + reward.message + "（隊伍無人陣亡，轉換為 30 金幣）");
-      updatePlayerMoney(30);
-    }
-    currentMap[y][x] = MAP_TILE.EMPTY;
-    renderMap(); return;
-  }
-  currentMap[y][x] = MAP_TILE.EMPTY;
-  showMapMessage("📦 " + reward.message);
-  renderMap();
-}
-
 
 
 // ── 商店 ─────────────────────────────────────────────────────
-function triggerShop() {
-  var isFirst = !shopUnlocked;
-  shopUnlocked = true;
-  updateControlsHint();
-  if (isFirst && typeof dialogues !== "undefined" &&
-      dialogues.shop_first && dialogues.shop_first.length > 0) {
-    showDialogue(dialogues.shop_first, function() { openShop(); });
-  } else {
-    openShop();
-  }
-}
-
 function openShop() {
   if (!_shopOpen) { _shopOpen = true; _duckOverlay(); }
   var list = document.getElementById("shop-item-list");
@@ -3117,7 +3070,8 @@ function startNewCombatRound() {
 
 // ── 等級與經驗值系統 ─────────────────────────────────────────
 function gainExp(char, amount) {
-  if (!MAX_LEVEL || !LEVEL_QUOTAS) return;
+  if (typeof MAX_LEVEL === "undefined" || typeof LEVEL_QUOTAS === "undefined" ||
+      typeof LEVELUP_BONUS === "undefined") return;
   char.exp   = (char.exp   || 0) + amount;
   char.level = (char.level || 1);
   var leveled = false;
@@ -3311,15 +3265,13 @@ function restartGame() {
   currentPlayer.atk       = playerStats.atk;
   currentPlayer.def       = playerStats.def;
   currentPlayer.money     = playerStats.money;
-  currentPlayer.keys      = playerStats.keys;
+  currentPlayer.keys      = playerStats.keys || 0;
   currentPlayer.skills    = (playerStats.skills || ["power_strike"]).slice();
   currentPlayer.inventory = [];
   currentPlayer.tempAtk   = 0;
   currentPlayer.tempDef   = 0;
 
   currentMap            = mapGrid.map(function(row) { return row.slice(); });
-  // 重新蓋上事件地塊（掛接表由 dev_panel.js / events.js 維護）
-  if (typeof syncEventTiles === "function") syncEventTiles();
   visitedTiles          = [];
   currentEnemy          = null;
   activeClones          = [];
@@ -3522,10 +3474,12 @@ function notifyShopClosed() {
 // ── 初始化 ────────────────────────────────────────────────────
 window.onload = function() {
   if (!DEV_MODE) {
-    var btnCode = document.getElementById("btn-open-code");
-    var btnDev  = document.getElementById("btn-open-dev");
-    if (btnCode) btnCode.style.display = "none";
-    if (btnDev)  btnDev.style.display  = "none";
+    var btnCode  = document.getElementById("btn-open-code");
+    var btnDev   = document.getElementById("btn-open-dev");
+    var btnCheat = document.getElementById("btn-open-cheatsheet");
+    if (btnCode)  btnCode.style.display  = "none";
+    if (btnDev)   btnDev.style.display   = "none";
+    if (btnCheat) btnCheat.style.display = "none";
   }
   updateHUD(); renderMap(); renderBagSidebar();
   showScreen("screen-map");

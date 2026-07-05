@@ -3,24 +3,25 @@
 // ============================================================
 
 
+// ── DEV_MODE：設為 false 隱藏「程式碼」「開發模式」「程式小抄」按鈕 ──
+var DEV_MODE = true;
+
+
 // ── 攝影機 / 顯示常數 ─────────────────────────────────────────
 var CAM_ZOOM  = 1.5;   // >1 = 拉近；改這一個數字調縮放
 var TILE_SIZE = 60;    // 每格原始像素（不改）
 var VIEW_PX   = 540;   // viewport 像素（不改）
 
 
-// ── 等級系統 ──────────────────────────────────────────────────
-var MAX_LEVEL    = 5;                       // 等級上限（調小可快速測試）
-var LEVEL_QUOTAS = [30, 60, 110, 180];      // 每級升級所需 EXP（索引 0 = Lv1→2）
-var LEVELUP_BONUS = { hp: 15, def: 1, spd: 2 }; // 每次升級加成
+// ── 地塊代碼（預設值） ────────────────────────────────────────
+//   0 = 空地、1 = 牆壁、2 = 出生點（地圖上放一格，玩家從這裡開始）
+//   10 ~ 255 = 自訂事件地塊，定義寫在 tile.js（見開發模式「事件地塊」分頁）
+var MAP_TILE = {
+  EMPTY: 0,
+  WALL:  1,
+  START: 2
+};
 
-// ── 升級特效設定（光圈動畫）────────────────────────────────────
-var LEVELUP_RING_COUNT    = 5;    // 光圈數量
-var LEVELUP_RING_DURATION = 900;  // 單圈動畫時長（ms）
-var LEVELUP_RING_STAGGER  = 110;  // 每圈啟動間隔（ms）
-var LEVELUP_RING_SIZE_MIN = 34;   // 最小光圈直徑（px）
-var LEVELUP_RING_SIZE_STEP = 20;  // 每圈直徑增量（px）
-var LEVELUP_RING_RISE     = 65;   // 光圈上浮距離（px）
 
 // ── 玩家初始數值 ──────────────────────────────────────────────
 var playerStats = {
@@ -30,20 +31,8 @@ var playerStats = {
   atk:    10,
   def:    5,
   spd:    10,
-  money:  10000,
-  keys:   0,
-  skills: ["power_strike"],
-  level: 1, exp: 0
+  money:  10000
 };
-
-
-// ── 寶箱獎勵 ──────────────────────────────────────────────────
-var chestRewards = [
-  { money: 25,  message: "你找到了 25 枚金幣！" },
-  { atk:   3,   message: "你找到了力量秘藥，攻擊力永久提升 3！" },
-  { def:   2,   message: "你找到了盾牌碎片，防禦力永久提升 2！" },
-  { money: 35,  message: "大寶箱！你找到了 35 枚金幣！" }
-];
 
 
 // ── 商店道具 ──────────────────────────────────────────────────
@@ -65,13 +54,3 @@ var shopItems = [
   { name: "血量恢復藥水", price: 10, effect: onShopHeal30,  desc: "立即回復 30 HP",   isConsumable: false },
   { name: "大恢復藥水",   price: 25, effect: onShopHeal80,  desc: "立即回復 80 HP",   isConsumable: false },
 ];
-
-
-
-
-// ── 對話文本（引擎內部使用） ────────────────────────
-var dialogues = {
-  shop_first: [
-    { speaker: "商人",   text: "歡迎光臨！看看有什麼需要的吧。" }
-  ],
-};

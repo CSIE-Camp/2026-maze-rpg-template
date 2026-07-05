@@ -46,6 +46,13 @@ function _gameGetTile(x, y) {
   return currentMap[y][x];
 }
 
+// 學員 API：移除某一格的事件（座標掛接 + 地塊都清掉，變回空地）。
+// 適合做「只能觸發一次」的事件。
+function removeEventAt(x, y) {
+  if (typeof tileEvents !== "undefined") delete tileEvents[x + "," + y];
+  _gameSetTile(x, y, 0);
+}
+
 function _gameSetPanel(html) {
   var panel   = document.getElementById("event-panel");
   var content = document.getElementById("event-panel-content");
@@ -89,7 +96,8 @@ function _bagUseItemByName(name) {
       try {
         if (typeof item.effect === "function") {
           item.effect();
-        } else if (typeof showMapMessage === "function") {
+        } else if (item.effect != null && typeof showMapMessage === "function") {
+          // effect 可以是 null（沒有效果的物品）；有填但不是函式才提醒
           showMapMessage("💥 「" + item.name + "」的 effect 不是函式，什麼事都沒發生。");
         }
       } catch (e) {

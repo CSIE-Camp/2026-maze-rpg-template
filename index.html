@@ -35,7 +35,7 @@
           <!-- 提示訊息：浮蓋在地圖上方 -->
           <div id="map-message"></div>
         </div>
-        <div id="controls-hint">WASD / ↑↓←→ 移動　M 地圖　B 背包　C 關閉　空格鍵 確認　ESC 設定</div>
+        <div id="controls-hint">WASD / ↑↓←→ 移動　M 地圖　ESC 設定　C 關閉</div>
       </div>
 
       <!-- ── 右側：資訊面板 ── -->
@@ -70,6 +70,7 @@
             <div id="side-actions">
               <button class="btn btn-side-action btn-side-code" id="btn-open-code" onclick="window.open('https://github.com/CSIE-Camp/2026-maze-rpg-template','_blank')">💻 程式碼</button>
               <button class="btn btn-side-action btn-side-dev" id="btn-open-dev" onclick="openDevPanel()">🛠 開發模式</button>
+              <button class="btn btn-side-action btn-side-code" id="btn-open-cheatsheet" onclick="window.open('https://hackmd.io/@minstrike520/S1zoPTPQzx','_blank')">📖 程式小抄</button>
             </div>
           </div>
         </div>
@@ -104,11 +105,7 @@
           <div class="legend-item"><span class="legend-dot" style="background:#22e060"></span>玩家</div>
           <div class="legend-item"><span class="legend-dot" style="background:#2d4a7a"></span>通道</div>
           <div class="legend-item"><span class="legend-dot" style="background:#080d1a;border:1px solid #333"></span>牆壁</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#b83030"></span>敵人</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#604898"></span>門</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#1878b0"></span>射擊遊戲</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#880010"></span>最終魔王</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#5a3890"></span>事件地塊</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#5a3890"></span>事件地塊（顏色依定義）</div>
           <div class="legend-item"><span class="legend-dot" style="background:#050810;border:1px solid #333"></span>未探索</div>
         </div>
       </div>
@@ -223,6 +220,7 @@
       <!-- 分頁列 -->
       <div id="dev-tab-bar">
         <button id="dev-tab-btn-events" class="dev-tab-btn dev-tab-btn--active" onclick="switchDevTab('events')">🛠 事件程式碼</button>
+        <button id="dev-tab-btn-tiles" class="dev-tab-btn" onclick="switchDevTab('tiles')">🧱 事件地塊</button>
         <button id="dev-tab-btn-map" class="dev-tab-btn" onclick="switchDevTab('map')">🗺️ 地圖編輯</button>
         <button id="dev-tab-btn-items" class="dev-tab-btn" onclick="switchDevTab('items')">🧪 物品生成器</button>
         <button id="dev-tab-btn-endings" class="dev-tab-btn" onclick="switchDevTab('endings')">🏁 結局編輯</button>
@@ -244,17 +242,41 @@
           </div>
         </div>
 
-        <!-- 右：掛接 + 快速加入 + 匯出 -->
+        <!-- 右：匯出 -->
         <div id="dev-panel-right">
-          <div class="dev-panel-title">📍 掛接事件</div>
-          <div id="dev-position">目前位置：(?, ?)</div>
-          <div id="dev-attach-controls">
-            <select id="dev-fn-select"></select>
-            <button class="btn btn-dev-attach" onclick="attachEventHere()">掛接在目前位置</button>
+          <div class="dev-panel-title">📤 匯出</div>
+          <div class="dev-panel-hint">
+            寫好的事件函式可以在「🧱 事件地塊」分頁綁定到自訂地塊，
+            再到「🗺️ 地圖編輯」分頁畫上地圖。
           </div>
-          <div id="dev-style-controls">
+
+          <div class="dev-panel-subtitle">
+            匯出 events.js
+            <button class="btn btn-dev-copy" onclick="copyExportCode()">📋 複製</button>
+          </div>
+          <div class="dev-panel-hint">把下面整段貼到 <code>events.js</code>（取代全部內容），清除瀏覽器快取後程式依然保留。</div>
+          <textarea id="dev-export-code" readonly spellcheck="false"></textarea>
+        </div>
+
+      </div>
+
+      <!-- ── 分頁：事件地塊 ── -->
+      <div id="dev-tab-tiles" class="dev-tab-page" style="display:none">
+
+        <!-- 左：地塊編輯表單 -->
+        <div id="dev-tiles-left">
+          <div class="dev-panel-title">🧱 事件地塊</div>
+          <div class="dev-panel-hint">
+            自訂你的事件地塊：編號 <b>10 ~ 255</b>（自己指定數值，避免和預設或別人的地塊撞號）。
+            事件函式先在「事件程式碼」分頁寫好；新增後到「🗺️ 地圖編輯」用筆刷畫上地圖。
+          </div>
+
+          <div class="dev-item-form">
+            <label>地塊編號（10~255） <input id="dev-tile-code" type="number" min="10" max="255" value="100"></label>
+            <label>地塊名稱 <input id="dev-tile-name" type="text" value="我的地塊"></label>
+            <label>顏色 <input id="dev-tile-color" type="color" value="#5a3890"></label>
             <label>圖示
-              <select id="dev-event-icon" onchange="updateIconPreview()">
+              <select id="dev-tile-icon" onchange="updateTileIconPreview()">
                 <option value="">（無）</option>
                 <option value="assets/picture/傳送門.png">傳送門</option>
                 <option value="assets/picture/寶箱.png">寶箱</option>
@@ -278,31 +300,30 @@
                 <option value="assets/picture/黑暗巨龍.png">黑暗巨龍</option>
                 <option value="assets/picture/小遊戲靶.png">小遊戲靶</option>
               </select>
-              <img id="dev-event-icon-preview" src="" alt="" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;display:none;margin-left:4px;">
+              <img id="dev-tile-icon-preview" src="" alt="" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;display:none;margin-left:4px;">
             </label>
-            <label>顏色 <input id="dev-event-color" type="color" value="#5a3890"></label>
+            <label>事件函式
+              <select id="dev-tile-fn"></select>
+            </label>
           </div>
-          <div class="dev-panel-hint">掛接後該格會變成事件地塊（覆蓋原本的地塊）</div>
 
-          <div class="dev-panel-subtitle">快速加入</div>
-          <div id="dev-quick-add">
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('portal')">傳送門</button>
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('chest')">寶箱</button>
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('shop')">商店</button>
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('lock')">上鎖的門</button>
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('minigame')">小遊戲</button>
-            <button class="btn dev-quick-btn" onclick="quickAddEvent('battle')">小怪戰鬥</button>
+          <div id="dev-tiles-toolbar">
+            <button class="btn btn-dev-apply" onclick="addOrUpdateTileDef()">➕ 新增 / 更新地塊</button>
+            <span id="dev-tiles-status"></span>
           </div>
-          <div class="dev-panel-hint">自動加入範本程式碼，並掛接在目前位置</div>
+        </div>
 
-          <div class="dev-panel-subtitle">已掛接事件</div>
-          <div id="dev-attach-list"></div>
+        <!-- 右：已定義地塊 + 匯出 -->
+        <div id="dev-tiles-right">
+          <div class="dev-panel-subtitle">已定義的地塊</div>
+          <div id="dev-tiles-list"></div>
 
           <div class="dev-panel-subtitle">
-            匯出 events.js
-            <button class="btn btn-dev-copy" onclick="copyExportCode()">📋 複製</button>
+            匯出 tile.js
+            <button class="btn btn-dev-copy" onclick="copyTileExportCode()">📋 複製</button>
           </div>
-          <textarea id="dev-export-code" readonly spellcheck="false"></textarea>
+          <div class="dev-panel-hint">把下面整段貼到 <code>tile.js</code>（取代 <code>var tileDefs</code>），清除瀏覽器快取後地塊定義依然保留。</div>
+          <textarea id="dev-tiles-export-code" readonly spellcheck="false"></textarea>
         </div>
 
       </div>
@@ -348,65 +369,12 @@
           <textarea id="dev-item-export-code" readonly spellcheck="false"></textarea>
         </div>
 
-        <!-- 右：目前背包 + bag API 教學 -->
+        <!-- 右：目前背包 -->
         <div id="dev-items-right">
           <div class="dev-panel-subtitle">🎒 目前背包</div>
           <div id="dev-items-bag-list"></div>
-
-          <div class="dev-panel-subtitle">📖 bag API 小抄</div>
-          <div id="dev-items-doc">
-            <pre>// game.bag 是「真的 JS 陣列」！
-// 沒有特殊方法，全部用原生陣列語法。
-
-// 1. 先寫一個效果函式
-function onPotionHeal() {
-  game.hp += 30;
-  game.message = "🧪 回復 30 HP！";
-}
-
-// 2. 加入物品：push
-//   （通常寫在寶箱、商店等事件裡）
-game.bag.push({
-  name: "藥水",
-  effect: onPotionHeal,
-  desc: "可以回復生命的藥水"
-});
-
-// 3. 讀取
-game.bag.length;    // 物品總數
-game.bag[0];        // 第一個物品
-game.bag[0].name;   // 它的名稱
-
-// 有沒有藥水？ → true / false
-game.bag.some(function(it) {
-  return it.name === "藥水";
-});
-
-// 有幾瓶藥水？ → 數字
-game.bag.filter(function(it) {
-  return it.name === "藥水";
-}).length;
-
-// 4. 使用一瓶藥水：
-//    findIndex 找到 → splice 移除
-//    → 呼叫 effect()
-var i = game.bag.findIndex(function(it) {
-  return it.name === "藥水";
-});
-if (i !== -1) {
-  var item = game.bag[i];
-  game.bag.splice(i, 1);  // 從背包移除
-  item.effect();          // 發動效果
-}
-
-// 丟掉一個（不發動效果）：
-// 一樣 findIndex + splice，不呼叫 effect
-
-game.bag = [];  // 清空背包</pre>
-            <div class="dev-panel-hint">
-              玩家可以在地圖背包（按 B）點「使用」，或在戰鬥中按道具按鈕使用物品，
-              兩種方式都會呼叫物品的 effect 函式並消耗一個。
-            </div>
+          <div class="dev-panel-hint">
+            bag API 的完整用法請看「📖 程式小抄」按鈕連結，或 <code>docs/reference.md</code>。
           </div>
         </div>
 
@@ -426,7 +394,7 @@ game.bag = [];  // 清空背包</pre>
             <button class="btn btn-dev-copy" onclick="copyEndingsExportCode()">📋 複製</button>
           </div>
           <div class="dev-panel-hint">
-            把下面整段貼到 <code>events.js</code>（取代原本的 <code>var gameEndings</code>），
+            把下面整段貼到 <code>endings.js</code>（取代原本的 <code>var gameEndings</code>），
             清除瀏覽器快取後結局設定依然保留。
           </div>
           <textarea id="dev-endings-export-code" readonly spellcheck="false"></textarea>
@@ -440,7 +408,7 @@ game.bag = [];  // 清空背包</pre>
         <div id="dev-map-left">
           <div class="dev-panel-title">🗺️ 地圖編輯</div>
           <div id="dev-map-grid"></div>
-          <div class="dev-panel-hint">點擊或按住拖曳塗色。事件地塊由「事件程式碼」分頁管理，套用地圖後仍會保留。</div>
+          <div class="dev-panel-hint">點擊或按住拖曳塗色。自訂事件地塊請先到「🧱 事件地塊」分頁定義，就會出現在右側筆刷。</div>
         </div>
 
         <!-- 右：工具 + 匯出 -->
@@ -487,12 +455,14 @@ game.bag = [];  // 清空背包</pre>
        載入 JS
        ════════════════════════════════════════════════════ -->
   <script src="map.js"></script>
+  <script src="tile.js"></script>
   <script src="new_data.js"></script>
   <script src="new_engine.js"></script>
   <script src="audio.js"></script>
   <script src="game_api.js"></script>
   <script src="dev_panel.js"></script>
   <script src="events.js"></script>
+  <script src="endings.js"></script>
 
   <script>
     function openShopFromHUD() {
