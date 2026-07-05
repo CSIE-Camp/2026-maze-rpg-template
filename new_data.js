@@ -86,8 +86,7 @@ var chestRewards = [
   { money: 25,  message: "你找到了 25 枚金幣！" },
   { atk:   3,   message: "你找到了力量秘藥，攻擊力永久提升 3！" },
   { def:   2,   message: "你找到了盾牌碎片，防禦力永久提升 2！" },
-  { money: 35,  message: "大寶箱！你找到了 35 枚金幣！" },
-  { reviveAlly: true, message: "你找到了友軍復活藥水！" }
+  { money: 35,  message: "大寶箱！你找到了 35 枚金幣！" }
 ];
 
 
@@ -146,30 +145,9 @@ var shopItems = [
     desc: "戰鬥中使用：指定對象 ATK +25，玩家損失 15 HP", isConsumable: true, targetSide: "ally", targetType: "single" },
   { name: "治癒藥水",     price: 16, effect: { hp: 50 },
     desc: "戰鬥中使用：指定對象回復 50 HP",         isConsumable: true,  targetSide: "ally",  targetType: "single" },
-  // 同伴相關
-  { name: "友軍復活藥水", price: 50, effect: { reviveAlly: true },
-    desc: "復活一名陣亡的同伴（恢復 50% HP）",      isConsumable: false, targetSide: "ally",  targetType: "single" }
 ];
 
 
-// ── 同伴定義（商店招募，最多 2 人） ──────────────────────────
-var allyDefs = [
-  { id: "archer", name: "弓箭手", icon: "🏹", img: "assets/picture/弓箭手.png",
-    hp: 80, maxHp: 80, atk: 18, def: 3, spd: 12, price: 1, critChance: 0.5,
-    skill: { id: "volley",     name: "箭雨",   icon: "🌧️",
-             desc: "攻擊全體敵人各造成 ATK 點傷害（冷卻 3 回合）",
-             isAoe: true,  multiplier: 1, cooldown: 2, baseHit: 80 } },
-  { id: "wizard", name: "法師",   icon: "🧙", img: "assets/picture/法師.png",
-    hp: 55, maxHp: 55, atk: 22, def: 2, spd: 8, price: 100,
-    skill: { id: "blizzard",   name: "冰矛",   icon: "❄️",
-             desc: "對單體造成 ATK×2 點傷害（冷卻 3 回合）",
-             isAoe: false, multiplier: 2, cooldown: 3, baseHit: 85 } },
-  { id: "knight", name: "聖騎士", icon: "⚔️", img: "assets/picture/聖騎士.png",
-    hp: 130, maxHp: 130, atk: 14, def: 26, spd: 10, price: 100,
-    skill: { id: "holy_guard", name: "護衛",   icon: "🔰",
-             desc: "本回合替玩家承受敵人攻擊（以自身 DEF 減傷，冷卻 3 回合）",
-             isTaunt: true, multiplier: 0, cooldown: 3 } }
-];
 
 
 // ── 射擊小遊戲設定 ────────────────────────────────────────────

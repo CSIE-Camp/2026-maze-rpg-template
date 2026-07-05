@@ -302,65 +302,20 @@ function logMessage(text) {
 
 function updateHUD() {
   function set(id, val) { var e = document.getElementById(id); if (e) e.textContent = val; }
-  set("hud-hp",    currentPlayer.hp + " / " + currentPlayer.maxHp);
-  set("hud-atk",   currentPlayer.atk);
-  set("hud-def",   currentPlayer.def);
+  set("hud-hp-inline", currentPlayer.hp + " / " + currentPlayer.maxHp);
+  set("hud-atk-inline", currentPlayer.atk + (currentPlayer.tempAtk || 0));
+  set("hud-def-inline", currentPlayer.def + (currentPlayer.tempDef || 0));
   set("hud-money", currentPlayer.money);
   set("hud-keys",  currentPlayer.keys);
-  set("hud-items", currentPlayer.inventory.length || 0);
 
   var bar = document.getElementById("player-hp-bar-fill");
   if (bar) bar.style.width = (currentPlayer.hp / currentPlayer.maxHp * 100) + "%";
   var pnum = document.getElementById("player-hp-num");
   if (pnum) pnum.textContent = currentPlayer.hp + " / " + currentPlayer.maxHp;
   updatePartyHpArea();
-  renderSideParty();
 }
 
-function renderSideParty() {
-  var area = document.getElementById("side-party-list");
-  if (!area) return;
-  area.innerHTML = "";
-
-  function makeCard(icon, name, hp, maxHp, atk, def, isPlayer, isKO, char) {
-    var pct = maxHp > 0 ? Math.max(0, hp / maxHp * 100) : 0;
-    var barClass = isKO ? "bar--low" : (isPlayer ? "bar--player" : (pct < 30 ? "bar--low" : "bar--ally"));
-    var lv = (char && char.level) || 1;
-    var exp = (char && char.exp)  || 0;
-    var quota = (lv < MAX_LEVEL) ? (LEVEL_QUOTAS[lv - 1] || 1) : 0;
-    var expPct = (lv < MAX_LEVEL && quota > 0) ? Math.min(100, Math.floor(exp / quota * 100)) : 100;
-    var expText = (lv >= MAX_LEVEL) ? "MAX" : (exp + " / " + quota);
-    var card = document.createElement("div");
-    card.className = "side-member-card" + (isKO ? " side-member-ko" : "");
-    card.innerHTML =
-      '<div class="side-member-name">' + icon + " " + name + (isKO ? " 💀" : "") +
-        ' <span class="side-member-lv">Lv.' + lv + '</span></div>' +
-      '<div class="side-member-bar-wrap">' +
-        '<div class="side-member-bar-fill ' + barClass + '" style="width:' + pct + '%"></div>' +
-      '</div>' +
-      '<div class="side-member-stats">' +
-        '❤️ ' + hp + '/' + maxHp +
-        ' &nbsp;⚔️ ' + atk +
-        ' &nbsp;🛡️ ' + def +
-      '</div>' +
-      '<div class="side-member-exp-wrap">' +
-        '<div class="side-member-exp-fill" style="width:' + expPct + '%"></div>' +
-      '</div>' +
-      '<div class="side-member-exp-text">EXP ' + expText + '</div>';
-    area.appendChild(card);
-  }
-
-  makeCard("🧙", currentPlayer.name,
-    currentPlayer.hp, currentPlayer.maxHp,
-    currentPlayer.atk + (currentPlayer.tempAtk || 0),
-    currentPlayer.def + (currentPlayer.tempDef || 0),
-    true, false, currentPlayer);
-
-  for (var i = 0; i < currentAllies.length; i++) {
-    var a = currentAllies[i];
-    makeCard(a.icon, a.name, a.hp, a.maxHp, a.atk, a.def, false, a.knockedOut, a);
-  }
-}
+function renderSideParty() {}
 
 // ── 小地圖渲染 ────────────────────────────────────────────────
 function renderMiniMap() {
@@ -620,15 +575,8 @@ function openSettings() {
   _duckOverlay();
 }
 
-function openPartyOverlay() {
-  var ov = document.getElementById("party-overlay");
-  if (ov) { renderSideParty(); ov.style.display = "flex"; _duckOverlay(); }
-}
-
-function closePartyOverlay() {
-  var ov = document.getElementById("party-overlay");
-  if (ov) { ov.style.display = "none"; _unduckOverlay(); }
-}
+function openPartyOverlay() {}
+function closePartyOverlay() {}
 
 function closeSettings() {
   var overlay = document.getElementById("settings-overlay");
@@ -1463,11 +1411,9 @@ function closeAnyOverlay() {
   var devPanelOverlay  = document.getElementById("dev-panel-overlay");
   var eventPanel       = document.getElementById("event-panel");
 
-  var partyOverlay     = document.getElementById("party-overlay");
   if (devPanelOverlay  && devPanelOverlay.style.display  !== "none") { closeDevPanel();       return true; }
   if (eventPanel       && eventPanel.style.display       !== "none") { game.panel = "";       return true; }
   if (settingsOverlay  && settingsOverlay.style.display  !== "none") { closeSettings();       return true; }
-  if (partyOverlay     && partyOverlay.style.display     !== "none") { closePartyOverlay();   return true; }
   if (minimapOverlay   && minimapOverlay.style.display   !== "none") { closeMiniMapOverlay(); return true; }
   if (inventoryOverlay && inventoryOverlay.style.display !== "none") { closeInventory();      return true; }
   if (inspectPanel     && inspectPanel.style.display     !== "none") { hideEnemyInfo();       return true; }
@@ -1773,44 +1719,12 @@ function openShop() {
   skillDefs.filter(function(s) { return s.type === "craft"; })
            .forEach(function(s) { renderCraftCard(s, list); });
 
-  sec("👥 招募同伴（最多 2 人，參戰後每回合可手動指派行動）");
-  if (typeof allyDefs !== "undefined") {
-    allyDefs.forEach(function(def) { renderAllyCard(def, list); });
-  }
-
   document.getElementById("shop-player-money").textContent = currentPlayer.money;
   renderShopSidebar();
   showScreen("screen-shop");
 }
 
 function renderShopSidebar() {
-  var area = document.getElementById("shop-party-list");
-  if (!area) return;
-  area.innerHTML = "";
-
-  function makeCard(icon, name, hp, maxHp, atk, def, isKO) {
-    var pct = maxHp > 0 ? Math.max(0, hp / maxHp * 100) : 0;
-    var barColor = isKO ? "#b71c1c" : (pct < 30 ? "#ef5350" : "#4caf50");
-    var card = document.createElement("div");
-    card.className = "shop-party-card" + (isKO ? " shop-party-ko" : "");
-    card.innerHTML =
-      '<div class="shop-party-name">' + icon + " " + name + (isKO ? " 💀" : "") + '</div>' +
-      '<div class="shop-party-bar-wrap"><div class="shop-party-bar-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
-      '<div class="shop-party-stats">❤️ ' + hp + '/' + maxHp + '</div>' +
-      '<div class="shop-party-stats">⚔️ ' + atk + '　🛡️ ' + def + '</div>';
-    area.appendChild(card);
-  }
-
-  makeCard("🧙", currentPlayer.name,
-    currentPlayer.hp, currentPlayer.maxHp,
-    currentPlayer.atk + (currentPlayer.tempAtk || 0),
-    currentPlayer.def + (currentPlayer.tempDef || 0), false);
-
-  for (var i = 0; i < currentAllies.length; i++) {
-    var a = currentAllies[i];
-    makeCard(a.icon, a.name, a.hp, a.maxHp, a.atk, a.def, a.knockedOut);
-  }
-
   var invArea = document.getElementById("shop-inventory-list");
   if (!invArea) return;
   invArea.innerHTML = "";

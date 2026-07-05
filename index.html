@@ -35,11 +35,23 @@
       <!-- ── 右側：資訊面板 ── -->
       <div id="map-right">
 
-        <!-- 上方：資源 + 按鈕 + 隊伍 -->
+        <!-- 上方：角色數值 + 按鈕 -->
         <div id="side-stats">
-          <div class="side-section-title">資源</div>
+          <div class="side-section-title">角色</div>
           <div id="side-stats-top">
             <div id="side-resources">
+              <div class="side-resource-row">
+                <span class="side-resource-label">❤️ HP</span>
+                <span id="hud-hp-inline">0 / 0</span>
+              </div>
+              <div class="side-resource-row">
+                <span class="side-resource-label">⚔️ ATK</span>
+                <span id="hud-atk-inline">0</span>
+              </div>
+              <div class="side-resource-row">
+                <span class="side-resource-label">🛡️ DEF</span>
+                <span id="hud-def-inline">0</span>
+              </div>
               <div class="side-resource-row">
                 <span class="side-resource-label">💰 金幣</span>
                 <span id="hud-money">0</span>
@@ -49,18 +61,12 @@
                 <span id="hud-keys">0</span>
               </div>
               <div class="side-resource-row">
-                <span class="side-resource-label">🎒 背包</span>
-                <span id="hud-items">0</span>
-              </div>
-              <div class="side-resource-row">
                 <button class="btn btn-side-action btn-side-shop" id="btn-open-shop"
                       onclick="openShopFromHUD()" style="display:none">🛒 商店</button>
               </div>
             </div>
             <div id="side-actions">
               <button class="btn btn-side-action btn-side-code" id="btn-open-code" onclick="window.open('https://hackmd.io/@Zaiku23/ntnucsiecamp','_blank')">💻 程式碼</button>
-              <button class="btn btn-side-action" id="btn-open-inventory" onclick="openInventory()">🎒 背包</button>
-              <button class="btn btn-side-action btn-party-open" onclick="openPartyOverlay()">👥 隊伍</button>
               <button class="btn btn-side-action btn-side-dev" id="btn-open-dev" onclick="openDevPanel()">🛠 開發模式</button>
             </div>
           </div>
@@ -75,18 +81,6 @@
           <canvas id="minimap-canvas"></canvas>
         </div>
 
-      </div>
-    </div>
-
-    <!-- 隊伍 overlay -->
-    <div id="party-overlay" style="display:none">
-      <div id="party-overlay-bg" onclick="closePartyOverlay()"></div>
-      <div id="party-overlay-content">
-        <div id="party-overlay-title">👥 隊伍</div>
-        <div id="side-party-list">
-          <!-- 由 JS 動態產生 -->
-        </div>
-        <button class="btn btn-minimap-close" onclick="closePartyOverlay()">✕ 關閉</button>
       </div>
     </div>
 
@@ -128,10 +122,6 @@
       </div>
     </div>
 
-    <!-- 保留供 updateHUD() 使用的隱藏元素 -->
-    <span id="hud-hp"  style="display:none"></span>
-    <span id="hud-atk" style="display:none"></span>
-    <span id="hud-def" style="display:none"></span>
   </div>
 
 
@@ -203,12 +193,6 @@
           <div id="combat-items" class="no-scrollbar" style="display:none"></div>
         </div>
 
-        <!-- 同伴行動區：輪到該同伴才顯示 -->
-        <div id="ally-action-zone" style="display:none">
-          <div id="ally-action-title">同伴行動</div>
-          <div id="ally-action-buttons"></div>
-        </div>
-
       </div>
     </div>
 
@@ -236,10 +220,6 @@
       <div id="shop-sidebar">
         <div id="shop-money-display">
           💰 金幣：<span id="shop-player-money">0</span> 枚
-        </div>
-        <div class="shop-sidebar-title">隊伍狀態</div>
-        <div id="shop-party-list">
-          <!-- 由 engine.js 動態產生 -->
         </div>
         <div class="shop-sidebar-title">背包道具</div>
         <div id="shop-inventory-list">
