@@ -240,7 +240,7 @@ function clearDevState() {
     (0, eval)(currentlyRunningCode);
   } catch (e) {}
 
-  _setDevStatus("🗑️ 已清除暫存，已載入 events.js 的設定", false);
+  _setDevStatus("🗑️ 已清除暫存，已載入範例設定", false);
   _refreshFnSelect();
   _renderAttachList();
   _renderExport();
