@@ -41,56 +41,7 @@ function _gameSetPanel(html) {
 
 var _gameProxyTarget = { message: "", panel: "" };
 
-// ── 公布欄（banner）──────────────────────────────────────────
-var _bannerData = {};
-var _bannerKeys = [];
-
-function _renderBanner() {
-  var el = document.getElementById("banner-sidebar");
-  if (!el) return;
-  if (_bannerKeys.length === 0) {
-    el.style.display = "none";
-    return;
-  }
-  el.style.display = "flex";
-  var html = "";
-  for (var i = 0; i < _bannerKeys.length; i++) {
-    var k = _bannerKeys[i];
-    var v = _bannerData[k];
-    var display = Array.isArray(v) ? v.join(", ") : String(v);
-    html += '<div class="banner-row">' +
-      '<span class="banner-key">' + k + '</span>' +
-      '<span class="banner-val">' + display + '</span></div>';
-  }
-  el.innerHTML = html;
-}
-
-var _bannerProxy = new Proxy(_bannerData, {
-  set: function(target, key, value) {
-    if (_bannerKeys.indexOf(key) === -1) _bannerKeys.push(key);
-    target[key] = value;
-    _renderBanner();
-    return true;
-  },
-  get: function(target, key) {
-    return target[key];
-  },
-  deleteProperty: function(target, key) {
-    var idx = _bannerKeys.indexOf(key);
-    if (idx !== -1) _bannerKeys.splice(idx, 1);
-    delete target[key];
-    _renderBanner();
-    return true;
-  }
-});
-
-function _resetBanner() {
-  for (var k in _bannerData) delete _bannerData[k];
-  _bannerKeys.length = 0;
-  _renderBanner();
-}
-
-// 重來時清除學員自訂屬性（message/panel 以外的所有 key）與公布欄
+// 重來時清除學員自訂屬性（message/panel 以外的所有 key）
 function _resetGameCustomProps() {
   var builtins = { message: true, panel: true };
   for (var k in _gameProxyTarget) {
@@ -98,7 +49,6 @@ function _resetGameCustomProps() {
   }
   game.panel = "";
   game.message = "";
-  _resetBanner();
 }
 
 var game = new Proxy(_gameProxyTarget, {
@@ -114,7 +64,6 @@ var game = new Proxy(_gameProxyTarget, {
       case "y":       return player.y;
       case "setTile": return _gameSetTile;
       case "getTile": return _gameGetTile;
-      case "banner":  return _bannerProxy;
     }
     return target[key];
   },
