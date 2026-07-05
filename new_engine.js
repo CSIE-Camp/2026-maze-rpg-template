@@ -3599,7 +3599,7 @@ window.onload = function() {
     if (btnCode) btnCode.style.display = "none";
     if (btnDev)  btnDev.style.display  = "none";
   }
-  updateHUD(); renderMap();
+  updateHUD(); renderMap(); renderBagSidebar();
   if (typeof dialogues !== "undefined" &&
       dialogues.intro && dialogues.intro.length > 0) {
     showDialogue(dialogues.intro, function() {
