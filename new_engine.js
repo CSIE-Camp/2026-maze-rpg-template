@@ -188,6 +188,14 @@ function showScreen(screenId) {
     var el = document.getElementById(screens[i]);
     if (el) el.style.display = (screens[i] === screenId) ? "flex" : "none";
   }
+  if (screenId === "screen-gameover" || screenId === "screen-clear") {
+    // 進入結局畫面時，強制關閉所有可能疊在上面的固定 Overlay
+    ["minimap-overlay", "tutorial-overlay", "dev-panel-overlay",
+     "event-panel", "settings-overlay"].forEach(function(id) {
+      var overlay = document.getElementById(id);
+      if (overlay) overlay.style.display = "none";
+    });
+  }
   if (screenId === "screen-map" && _tut && _tut.mazePending) { setTimeout(tryShowMazeTutorial, 150); }
 }
 
