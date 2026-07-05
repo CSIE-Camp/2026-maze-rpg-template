@@ -411,42 +411,44 @@ body {
 }
 .btn-minimap-close:hover { background: #2a4880; }
 
-/* ── 背包 Overlay ────────────────────────────────────────── */
-#inventory-overlay {
-  position: absolute; inset: 0; z-index: 200;
-  display: flex; align-items: center; justify-content: center;
+/* ── 背包左側欄 ─────────────────────────────────────────── */
+#map-bag {
+  position: relative;
+  top: 10vh;
+  width: 180px;
+  flex-shrink: 0;
+  background: #16213e;
+  border: 2px solid #0f3460;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 540px;
+  overflow-y: auto;
 }
-#inventory-overlay-bg {
-  position: absolute; inset: 0;
-  background: rgba(0,0,0,0.65); backdrop-filter: blur(2px);
+#bag-list {
+  display: flex; flex-direction: column; gap: 6px;
 }
-#inventory-overlay-content {
-  position: relative; z-index: 1;
-  background: #0a1020; border: 2px solid #1e3560;
-  border-radius: 12px; padding: 24px 28px;
-  min-width: 280px; max-width: 420px; width: 90%;
-  display: flex; flex-direction: column; gap: 12px;
-  box-shadow: 0 0 40px rgba(15,52,96,0.8);
+.bag-empty {
+  color: #5a7a9a; font-size: 12px; text-align: center; padding: 12px 0;
 }
-#inventory-overlay-title {
-  font-size: 18px; font-weight: bold; color: #c8d8f8;
-  border-bottom: 1px solid #1e3560; padding-bottom: 10px;
-}
-#inventory-overlay-list {
-  display: flex; flex-direction: column; gap: 8px;
-  max-height: 50vh; overflow-y: auto;
-}
-.inventory-overlay-empty {
-  color: #5a7a9a; font-size: 13px; text-align: center; padding: 16px 0;
-}
-.inventory-overlay-row {
-  display: flex; align-items: baseline; gap: 8px;
+.bag-row {
   background: rgba(255,255,255,0.04); border: 1px solid #1e3560;
-  border-radius: 8px; padding: 8px 12px;
+  border-radius: 6px; padding: 6px 8px;
 }
-.inv-row-name  { font-size: 13px; color: #e0e8ff; font-weight: bold; flex-shrink: 0; }
-.inv-row-desc  { font-size: 11px; color: #7a9ac0; flex: 1; }
-.inv-row-qty   { font-size: 13px; color: #ffd700; font-weight: bold; flex-shrink: 0; }
+.bag-row-top  { display: flex; align-items: center; }
+.bag-row-name { font-size: 12px; color: #e0e8ff; font-weight: bold; }
+.bag-row-qty  { font-size: 11px; color: #ffd700; margin-left: 4px; }
+.bag-row-desc { font-size: 10px; color: #7a9ac0; display: block; margin-top: 2px; }
+.bag-row-use {
+  margin-left: auto; flex: none;
+  background: #1e3560; color: #c8d8f8;
+  border: 1px solid #2a4880; border-radius: 5px;
+  padding: 1px 8px; font-size: 10px; cursor: pointer;
+  transition: background 0.15s;
+}
+.bag-row-use:hover { background: #2a4880; }
 
 #game-board {
   display: flex;
@@ -478,7 +480,8 @@ body {
 .tile--shop,
 .tile--minigame,
 .tile--door,
-.tile--boss {
+.tile--boss,
+.tile--event {
   box-shadow: inset 0 0 0 4px rgba(6, 10, 21, 0.75);
 }
 
@@ -1738,4 +1741,417 @@ body {
   box-shadow: 0 4px 14px rgba(0,0,0,0.7);
   display: none;
   line-height: 1.6;
+}
+
+/* ════════════════════════════════════════════════════════════
+   開發模式面板（Live Preview）── dev_panel.js
+   ════════════════════════════════════════════════════════════ */
+.btn-side-action.btn-side-dev { background: #2a1a40; border-color: #5a3890; color: #c8a8f8; }
+.btn-side-action.btn-side-dev:hover { background: #3a2858; }
+
+#dev-panel-overlay {
+  position: fixed; inset: 0; z-index: 2500;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+#dev-panel-bg {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+#dev-panel-content {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: row; flex-wrap: wrap; gap: 20px;
+  background: #0a1020; border: 2px solid #5a3890;
+  border-radius: 14px; padding: 22px 26px;
+  width: 92vw; max-width: 900px;
+  max-height: none;
+  margin: auto;
+  box-shadow: 0 0 40px rgba(90, 56, 144, 0.5);
+}
+
+.dev-panel-title {
+  font-size: 15px; font-weight: bold; color: #c8a8f8;
+  border-bottom: 1px solid #3a2858; padding-bottom: 8px;
+}
+.dev-panel-subtitle {
+  font-size: 13px; font-weight: bold; color: #a0b8d8;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #1e3560; padding-bottom: 6px;
+  margin-top: 4px;
+}
+.dev-panel-hint { font-size: 11px; color: #6a7a9a; }
+
+/* 左欄：程式碼編輯器 */
+#dev-panel-left {
+  display: flex; flex-direction: column; gap: 12px;
+  flex: 1 1 420px;
+  min-width: 280px;
+}
+#dev-code-editor {
+  flex: 1; min-height: 300px;
+  background: #060a14; color: #d8e8ff;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 12px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 13px; line-height: 1.6;
+  resize: none; outline: none;
+}
+#dev-code-editor:focus { border-color: #5a3890; }
+#dev-editor-toolbar { display: flex; align-items: center; gap: 12px; }
+.btn-dev-apply { background: #2e7d32; color: #fff; flex: none; padding: 8px 20px; }
+#dev-status { font-size: 12px; flex: 1; }
+.dev-status-ok    { color: #80c898; }
+.dev-status-error { color: #f08080; }
+
+/* 右欄：掛接 + 匯出 */
+#dev-panel-right {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 280px;
+  min-width: 240px;
+}
+.btn-dev-copy   { background: #333; color: #ccc; flex: none; padding: 4px 10px; font-size: 11px; }
+
+.dev-attach-empty { font-size: 12px; color: #6a7a9a; }
+.dev-attach-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #101830; border: 1px solid #1e3560; border-radius: 6px;
+  padding: 5px 10px; font-size: 12px; color: #c8d8f0;
+  font-family: "Consolas", "Menlo", monospace;
+}
+.dev-attach-remove {
+  background: none; border: none; color: #f08080;
+  cursor: pointer; font-size: 12px; padding: 2px 4px;
+}
+.dev-attach-remove:hover { color: #ff4040; }
+.dev-file-badge {
+  flex: none; margin-left: 6px;
+  background: #1e3560; color: #8aa8d0;
+  border: 1px solid #2a4880; border-radius: 4px;
+  padding: 2px 6px; font-size: 10px;
+  cursor: help;
+}
+
+#dev-export-code {
+  height: 150px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
+
+/* 事件地塊：底色由 tile.js 的 tileDefs 設定（inline style），這裡只給預設 */
+.tile--event {
+  background: #5a3890;
+}
+
+/* 未定義的地塊（DEV_MODE 下標紅提醒開發者） */
+.tile--unknown {
+  background: #7a1010;
+  color: #ffb0b0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold;
+}
+
+/* ── 自訂事件面板（game.panel = "..."）─────────────────────── */
+#event-panel {
+  position: fixed; inset: 0; z-index: 1800;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+#event-panel-card {
+  position: relative;
+  background: #0a1020; border: 2px solid #1e3560;
+  border-radius: 14px; padding: 26px 32px;
+  min-width: 320px; max-width: 520px; max-height: 80vh;
+  overflow-y: auto;
+  color: #d8e8ff;
+  box-shadow: 0 0 40px rgba(15, 52, 96, 0.9);
+}
+#event-panel-close {
+  position: absolute; top: 8px; right: 10px;
+  background: none; border: none; color: #6a7a9a;
+  font-size: 15px; cursor: pointer;
+}
+#event-panel-close:hover { color: #fff; }
+#event-panel-content h1, #event-panel-content h2, #event-panel-content h3 {
+  color: #c8d8f8; margin-bottom: 10px;
+}
+#event-panel-content p { margin-bottom: 10px; line-height: 1.6; }
+#event-panel-content button {
+  background: #1e3560; color: #c8d8f8;
+  border: 1px solid #2a4880; border-radius: 8px;
+  padding: 8px 16px; margin: 4px 6px 0 0;
+  font-size: 14px; cursor: pointer;
+  transition: background 0.15s;
+}
+#event-panel-content button:hover { background: #2a4880; }
+
+/* ── 結局全屏面板 ─────────────────────────────────────────────── */
+#ending-panel {
+  position: fixed; inset: 0; z-index: 2000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+}
+#ending-panel-box {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 24px; text-align: center;
+  padding: 48px 40px;
+  max-width: 600px; max-height: 80vh; overflow-y: auto;
+  color: #d8e8ff;
+}
+#ending-panel-content h1, #ending-panel-content h2, #ending-panel-content h3 {
+  color: #c8d8f8; margin-bottom: 10px;
+}
+#ending-panel-content p { margin-bottom: 10px; line-height: 1.6; font-size: 18px; color: #b0b0b0; }
+
+/* ── 結局編輯分頁 ─────────────────────────────────────────────── */
+#dev-tab-endings { gap: 20px; }
+#dev-endings-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+#dev-endings-right { width: 340px; display: flex; flex-direction: column; gap: 6px; }
+#dev-endings-export-code {
+  flex: 1; min-height: 150px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
+.dev-ending-card {
+  background: #0c1628; border: 1px solid #1e3560; border-radius: 8px;
+  padding: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.dev-ending-card label { color: #8a9ab0; font-size: 12px; }
+.dev-ending-card input, .dev-ending-card textarea {
+  background: #0a1020; color: #c8d8f8; border: 1px solid #1e3560;
+  border-radius: 6px; padding: 6px 8px; font-size: 13px;
+  font-family: "Consolas", "Menlo", monospace; outline: none;
+}
+.dev-ending-card textarea { min-height: 60px; resize: vertical; }
+.dev-ending-header { display: flex; align-items: center; justify-content: space-between; }
+.dev-ending-header span { color: #c8d8f8; font-weight: bold; font-size: 14px; }
+.dev-ending-remove {
+  background: none; border: none; color: #f06060; cursor: pointer; font-size: 14px;
+}
+
+/* ── 開發模式額外樣式（返回與清除暫存、無效掛接） ──────────────── */
+.btn-dev-revert {
+  background: #e65100;
+  color: #fff;
+  flex: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.12s, opacity 0.12s;
+  display: none;
+}
+.btn-dev-revert:hover {
+  transform: scale(1.06);
+  opacity: 0.9;
+}
+.btn-dev-revert:active {
+  transform: scale(0.97);
+}
+
+.btn-dev-clear {
+  background: #c62828;
+  color: #fff;
+  flex: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.12s, opacity 0.12s;
+}
+.btn-dev-clear:hover {
+  transform: scale(1.06);
+  opacity: 0.9;
+}
+.btn-dev-clear:active {
+  transform: scale(0.97);
+}
+
+.dev-attach-row--invalid {
+  border-color: #ef5350 !important;
+  background: #2a0c0c !important;
+}
+
+.dev-attach-invalid-label {
+  color: #ef5350;
+  font-weight: bold;
+  margin-left: 6px;
+}
+
+
+/* ── 開發面板分頁 ─────────────────────────────────────────── */
+#dev-tab-bar {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid #3a2858;
+  padding-bottom: 10px;
+}
+.dev-tab-btn {
+  background: none; border: 1px solid #3a2858; border-radius: 8px 8px 0 0;
+  color: #8a7aa8; padding: 8px 18px;
+  font-size: 14px; font-weight: bold; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.dev-tab-btn:hover { color: #c8a8f8; }
+.dev-tab-btn--active {
+  background: #2a1a40; color: #c8a8f8; border-color: #5a3890;
+}
+#dev-panel-close-btn { margin-left: auto; flex: none; }
+
+.dev-tab-page {
+  display: flex; flex-direction: row; flex-wrap: wrap; gap: 20px;
+  width: 100%;
+}
+
+/* ── 快速範本按鈕 ─────────────────────────────────────────── */
+.dev-quick-btn {
+  background: #101830; color: #c8d8f0;
+  border: 1px solid #2a4880; flex: 1;
+  padding: 8px 6px; font-size: 13px;
+}
+.dev-quick-btn:hover { background: #1e3560; }
+
+/* ── 掛接清單的顏色 / 圖示預覽 ─────────────────────────────── */
+.dev-attach-swatch {
+  width: 22px; height: 22px; flex-shrink: 0;
+  border-radius: 4px; margin-right: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+.dev-attach-label { flex: 1; }
+
+/* ── 事件地塊分頁 ─────────────────────────────────────────── */
+#dev-tiles-left {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 380px; min-width: 280px;
+}
+#dev-tiles-right {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 300px; min-width: 260px;
+}
+#dev-tab-tiles code {
+  background: #060a14; border: 1px solid #1e3560; border-radius: 4px;
+  padding: 1px 5px; color: #c8a8f8;
+  font-family: "Consolas", "Menlo", monospace; font-size: 11px;
+}
+#dev-tile-color {
+  flex: none; width: 42px; height: 30px; padding: 2px; cursor: pointer;
+}
+#dev-tile-code { flex: none; width: 90px; }
+#dev-tiles-toolbar { display: flex; align-items: center; gap: 12px; }
+#dev-tiles-status { font-size: 12px; flex: 1; }
+#dev-tiles-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 240px; overflow-y: auto;
+}
+#dev-tiles-export-code {
+  flex: 1; min-height: 150px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
+
+/* ── 物品生成器分頁 ───────────────────────────────────────── */
+#dev-items-left {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 380px; min-width: 280px;
+}
+#dev-items-right {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 300px; min-width: 260px;
+}
+#dev-tab-items code {
+  background: #060a14; border: 1px solid #1e3560; border-radius: 4px;
+  padding: 1px 5px; color: #c8a8f8;
+  font-family: "Consolas", "Menlo", monospace; font-size: 11px;
+}
+.dev-item-form { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #c8d8f0; }
+.dev-item-form label { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.dev-item-form input, .dev-item-form select {
+  flex: 1; min-width: 0;
+  background: #060a14; color: #d8e8ff;
+  border: 1px solid #1e3560; border-radius: 6px;
+  padding: 6px 8px; font-size: 13px; outline: none;
+}
+.dev-item-form input:focus, .dev-item-form select:focus { border-color: #5a3890; }
+#dev-item-quick-add { display: flex; gap: 8px; }
+#dev-items-toolbar { display: flex; align-items: center; gap: 12px; }
+#dev-items-status { font-size: 12px; flex: 1; }
+#dev-item-export-code {
+  height: 120px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
+}
+#dev-items-bag-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 160px; overflow-y: auto;
+}
+.dev-bag-use {
+  background: #1565c0; color: #fff; border: none; border-radius: 6px;
+  padding: 3px 10px; font-size: 11px; cursor: pointer;
+  flex: none; margin-right: 4px;
+}
+.dev-bag-use:hover { background: #1e7be0; }
+
+/* ── 地圖編輯分頁 ─────────────────────────────────────────── */
+#dev-map-left {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 0 1 auto;
+}
+#dev-map-grid {
+  display: grid;
+  gap: 1px;
+  background: #1e3560;
+  border: 1px solid #1e3560;
+  width: fit-content;
+  user-select: none;
+}
+.dev-map-cell {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; line-height: 1;
+  color: #fff;
+  cursor: crosshair;
+}
+.dev-map-cell:hover { outline: 2px solid #c8a8f8; outline-offset: -2px; }
+
+#dev-map-right {
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 240px; min-width: 220px;
+}
+#dev-map-palette {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.dev-map-tool {
+  display: flex; align-items: center; gap: 6px;
+  background: #101830; color: #c8d8f0;
+  border: 1px solid #1e3560; border-radius: 6px;
+  padding: 5px 10px; font-size: 12px; cursor: pointer;
+}
+.dev-map-tool:hover { background: #1e3560; }
+.dev-map-tool--active {
+  border-color: #c8a8f8; background: #2a1a40; color: #c8a8f8;
+}
+.dev-map-tool-dot {
+  width: 12px; height: 12px; border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+#dev-map-toolbar { display: flex; gap: 8px; }
+#dev-map-status { font-size: 12px; min-height: 16px; }
+#dev-map-export-code {
+  height: 150px; background: #060a14; color: #a0b8d8;
+  border: 1px solid #1e3560; border-radius: 8px;
+  padding: 10px; font-family: "Consolas", "Menlo", monospace;
+  font-size: 11px; line-height: 1.5;
+  resize: none; outline: none;
 }

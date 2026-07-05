@@ -48,7 +48,19 @@ var SESSION_SEED = Date.now() & 0xFFFFFFFF;
 
 
 // ── 全域遊戲狀態 ──────────────────────────────────────────────
+// 出生點：掃描地圖中的出生點地塊（MAP_TILE.START）
+function _findPlayerStartInGrid(grid) {
+  for (var y = 0; y < grid.length; y++) {
+    for (var x = 0; x < grid[y].length; x++) {
+      if (grid[y][x] === MAP_TILE.START) return { x: x, y: y };
+    }
+  }
+  return { x: 1, y: 1 };
+}
+var playerStart = _findPlayerStartInGrid(mapGrid);
 var player = { x: playerStart.x, y: playerStart.y };
+
+var visionRadius = 2;   // 視野半徑（渲染時由攝影機計算覆寫）
 
 var currentPlayer = {
   name:      playerStats.name,
@@ -58,7 +70,7 @@ var currentPlayer = {
   def:       playerStats.def,
   spd:       playerStats.spd  || 10,
   money:     playerStats.money,
-  keys:      playerStats.keys,
+  keys:      playerStats.keys || 0,
   skills:    (playerStats.skills || ["power_strike"]).slice(),
   inventory: [],
   tempAtk:   0,
@@ -171,9 +183,6 @@ var dialogueCallback = null;
 
 
 // ── 小遊戲狀態 ────────────────────────────────────────────────
-var mgScore        = 0;
-var mgTimeLeft     = MG_TIME;
-var mgTimer        = null;
 var mgCurrentEnemy = null;
 var mgEnemyTimer   = null;
 var mgRunning      = false;
@@ -181,24 +190,22 @@ var mgRunning      = false;
 
 // ── 工具函式 ──────────────────────────────────────────────────
 function showScreen(screenId) {
-  var screens = ["screen-map", "screen-combat", "screen-shop",
-                 "screen-minigame", "screen-dialogue",
+  var screens = ["screen-map", "screen-shop",
+                 "screen-dialogue",
                  "screen-gameover", "screen-clear"];
   for (var i = 0; i < screens.length; i++) {
     var el = document.getElementById(screens[i]);
     if (el) el.style.display = (screens[i] === screenId) ? "flex" : "none";
   }
-  // pending 教學：回到目標場景時觸發
-  if (screenId === "screen-map"    && _tut && _tut.mazePending)   { setTimeout(tryShowMazeTutorial,        150); }
-  if (screenId === "screen-combat" && _tut && _tut.combatPending) { setTimeout(tryShowCombatIntroTutorial, 150); }
-  if (screenId === "screen-combat") {
-    var sc = document.getElementById("screen-combat");
-    if (sc) {
-      sc.classList.remove("combat-enter");
-      void sc.offsetWidth;
-      sc.classList.add("combat-enter");
-    }
+  if (screenId === "screen-gameover" || screenId === "screen-clear") {
+    // 進入結局畫面時，強制關閉所有可能疊在上面的固定 Overlay
+    ["minimap-overlay", "tutorial-overlay", "dev-panel-overlay",
+     "event-panel", "settings-overlay"].forEach(function(id) {
+      var overlay = document.getElementById(id);
+      if (overlay) overlay.style.display = "none";
+    });
   }
+  if (screenId === "screen-map" && _tut && _tut.mazePending) { setTimeout(tryShowMazeTutorial, 150); }
 }
 
 function playSound(name) {}
@@ -302,67 +309,32 @@ function logMessage(text) {
 
 function updateHUD() {
   function set(id, val) { var e = document.getElementById(id); if (e) e.textContent = val; }
-  set("hud-hp",    currentPlayer.hp + " / " + currentPlayer.maxHp);
-  set("hud-atk",   currentPlayer.atk);
-  set("hud-def",   currentPlayer.def);
+  set("hud-hp-inline", currentPlayer.hp + " / " + currentPlayer.maxHp);
+  set("hud-atk-inline", currentPlayer.atk + (currentPlayer.tempAtk || 0));
+  set("hud-def-inline", currentPlayer.def + (currentPlayer.tempDef || 0));
   set("hud-money", currentPlayer.money);
-  set("hud-keys",  currentPlayer.keys);
-  set("hud-items", currentPlayer.inventory.length || 0);
 
   var bar = document.getElementById("player-hp-bar-fill");
   if (bar) bar.style.width = (currentPlayer.hp / currentPlayer.maxHp * 100) + "%";
   var pnum = document.getElementById("player-hp-num");
   if (pnum) pnum.textContent = currentPlayer.hp + " / " + currentPlayer.maxHp;
   updatePartyHpArea();
-  renderSideParty();
 }
 
-function renderSideParty() {
-  var area = document.getElementById("side-party-list");
-  if (!area) return;
-  area.innerHTML = "";
-
-  function makeCard(icon, name, hp, maxHp, atk, def, isPlayer, isKO, char) {
-    var pct = maxHp > 0 ? Math.max(0, hp / maxHp * 100) : 0;
-    var barClass = isKO ? "bar--low" : (isPlayer ? "bar--player" : (pct < 30 ? "bar--low" : "bar--ally"));
-    var lv = (char && char.level) || 1;
-    var exp = (char && char.exp)  || 0;
-    var quota = (lv < MAX_LEVEL) ? (LEVEL_QUOTAS[lv - 1] || 1) : 0;
-    var expPct = (lv < MAX_LEVEL && quota > 0) ? Math.min(100, Math.floor(exp / quota * 100)) : 100;
-    var expText = (lv >= MAX_LEVEL) ? "MAX" : (exp + " / " + quota);
-    var card = document.createElement("div");
-    card.className = "side-member-card" + (isKO ? " side-member-ko" : "");
-    card.innerHTML =
-      '<div class="side-member-name">' + icon + " " + name + (isKO ? " 💀" : "") +
-        ' <span class="side-member-lv">Lv.' + lv + '</span></div>' +
-      '<div class="side-member-bar-wrap">' +
-        '<div class="side-member-bar-fill ' + barClass + '" style="width:' + pct + '%"></div>' +
-      '</div>' +
-      '<div class="side-member-stats">' +
-        '❤️ ' + hp + '/' + maxHp +
-        ' &nbsp;⚔️ ' + atk +
-        ' &nbsp;🛡️ ' + def +
-      '</div>' +
-      '<div class="side-member-exp-wrap">' +
-        '<div class="side-member-exp-fill" style="width:' + expPct + '%"></div>' +
-      '</div>' +
-      '<div class="side-member-exp-text">EXP ' + expText + '</div>';
-    area.appendChild(card);
-  }
-
-  makeCard("🧙", currentPlayer.name,
-    currentPlayer.hp, currentPlayer.maxHp,
-    currentPlayer.atk + (currentPlayer.tempAtk || 0),
-    currentPlayer.def + (currentPlayer.tempDef || 0),
-    true, false, currentPlayer);
-
-  for (var i = 0; i < currentAllies.length; i++) {
-    var a = currentAllies[i];
-    makeCard(a.icon, a.name, a.hp, a.maxHp, a.atk, a.def, false, a.knockedOut, a);
-  }
-}
+function renderSideParty() {}
 
 // ── 小地圖渲染 ────────────────────────────────────────────────
+// 依地塊代碼取得小地圖顏色：空地/出生點 = 通道色、牆壁 = 深色、
+// 自訂事件地塊（10~255）用 tileDefs 定義的顏色；未定義的地塊在
+// DEV_MODE 下顯示紅色提醒開發者。
+function _miniMapTileColor(code) {
+  if (code === MAP_TILE.WALL) return "#080d1a";
+  if (code === MAP_TILE.EMPTY || code === MAP_TILE.START) return "#2d4a7a";
+  var def = (typeof tileDefs !== "undefined") ? tileDefs[code] : null;
+  if (def && def.color) return def.color;
+  return DEV_MODE ? "#e02020" : "#2d4a7a";
+}
+
 function renderMiniMap() {
   var canvas = document.getElementById("minimap-canvas");
   if (!canvas || !canvas.getContext) return;
@@ -376,17 +348,6 @@ function renderMiniMap() {
   var CELL   = 9;
   canvas.width  = VIEW * CELL;
   canvas.height = VIEW * CELL;
-
-  var TC = {};
-  TC[MAP_TILE.EMPTY]      = "#2d4a7a";
-  TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.CHEST]      = "#c89010";
-  TC[MAP_TILE.ENEMY]      = "#b83030";
-  TC[MAP_TILE.DOOR]       = "#604898";
-  TC[MAP_TILE.MINI_GAME]  = "#1878b0";
-  TC[MAP_TILE.SHOP]       = "#287840";
-  TC[MAP_TILE.PORTAL]     = "#c05010";
-  TC[MAP_TILE.FINAL_BOSS] = "#880010";
 
   for (var dy = -RADIUS; dy <= RADIUS; dy++) {
     for (var dx = -RADIUS; dx <= RADIUS; dx++) {
@@ -405,7 +366,7 @@ function renderMiniMap() {
         var isVisible  = dist <= visionRadius;
         var isExplored = visitedTiles.indexOf(mx + "," + my) !== -1;
         if (isVisible || isExplored) {
-          color = TC[currentMap[my][mx]] || "#2d4a7a";
+          color = _miniMapTileColor(currentMap[my][mx]);
         } else {
           color = "#050810";
         }
@@ -433,17 +394,6 @@ function renderMiniMapLarge() {
   canvas.width  = cols * CELL;
   canvas.height = rows * CELL;
 
-  var TC = {};
-  TC[MAP_TILE.EMPTY]      = "#2d4a7a";
-  TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.CHEST]      = "#c89010";
-  TC[MAP_TILE.ENEMY]      = "#b83030";
-  TC[MAP_TILE.DOOR]       = "#604898";
-  TC[MAP_TILE.MINI_GAME]  = "#1878b0";
-  TC[MAP_TILE.SHOP]       = "#287840";
-  TC[MAP_TILE.PORTAL]     = "#c05010";
-  TC[MAP_TILE.FINAL_BOSS] = "#880010";
-
   for (var y = 0; y < rows; y++) {
     for (var x = 0; x < cols; x++) {
       var isPlayer   = (x === player.x && y === player.y);
@@ -455,7 +405,7 @@ function renderMiniMapLarge() {
       if (isPlayer) {
         color = "#22e060";
       } else if (isVisible || isExplored) {
-        color = TC[currentMap[y][x]] || "#2d4a7a";
+        color = _miniMapTileColor(currentMap[y][x]);
       } else {
         color = "#050810";
       }
@@ -537,46 +487,49 @@ function closeMiniMapOverlay() {
   _unduckOverlay();
 }
 
-// ── 背包 Overlay ──────────────────────────────────────────────
-function openInventory() {
-  var overlay = document.getElementById("inventory-overlay");
-  if (!overlay) return;
-  var list = document.getElementById("inventory-overlay-list");
-  if (list) {
-    list.innerHTML = "";
-    var inv = currentPlayer.inventory;
-    if (!inv || inv.length === 0) {
-      var empty = document.createElement("div");
-      empty.className = "inventory-overlay-empty";
-      empty.textContent = "（背包是空的）";
-      list.appendChild(empty);
-    } else {
-      var counts = {};
-      for (var i = 0; i < inv.length; i++) {
-        var n = inv[i].name;
-        if (!counts[n]) counts[n] = { item: inv[i], qty: 0 };
-        counts[n].qty++;
-      }
-      Object.keys(counts).forEach(function(name) {
-        var row = document.createElement("div");
-        row.className = "inventory-overlay-row";
-        var c = counts[name];
-        row.innerHTML = "<span class='inv-row-name'>" + c.item.name + "</span>" +
-                        "<span class='inv-row-desc'>" + (c.item.desc || "") + "</span>" +
-                        "<span class='inv-row-qty'>× " + c.qty + "</span>";
-        list.appendChild(row);
-      });
-    }
+// ── 背包側欄 ─────────────────────────────────────────────────
+function renderBagSidebar() {
+  var list = document.getElementById("bag-list");
+  if (!list) return;
+  list.innerHTML = "";
+  var inv = currentPlayer.inventory;
+  if (!inv || inv.length === 0) {
+    var empty = document.createElement("div");
+    empty.className = "bag-empty";
+    empty.textContent = "（空的）";
+    list.appendChild(empty);
+    return;
   }
-  overlay.style.display = "flex";
-  _updateTutorialToggles();
-  _duckOverlay();
-}
+  var counts = {};
+  for (var i = 0; i < inv.length; i++) {
+    var n = inv[i].name;
+    if (!counts[n]) counts[n] = { item: inv[i], qty: 0 };
+    counts[n].qty++;
+  }
+  Object.keys(counts).forEach(function(name) {
+    var row = document.createElement("div");
+    row.className = "bag-row";
+    var c = counts[name];
 
-function closeInventory() {
-  var overlay = document.getElementById("inventory-overlay");
-  if (overlay) overlay.style.display = "none";
-  _unduckOverlay();
+    var top = document.createElement("div");
+    top.className = "bag-row-top";
+    top.innerHTML = "<span class='bag-row-name'>" + c.item.name + "</span>" +
+                    "<span class='bag-row-qty'>× " + c.qty + "</span>";
+
+    var useBtn = document.createElement("button");
+    useBtn.className = "bag-row-use";
+    useBtn.textContent = "使用";
+    useBtn.onclick = function() { _bagUseItemByName(name); };
+    top.appendChild(useBtn);
+
+    var desc = document.createElement("span");
+    desc.className = "bag-row-desc";
+    desc.textContent = c.item.desc || "";
+
+    row.appendChild(top);
+    row.appendChild(desc);
+    list.appendChild(row);
+  });
 }
 
 // ── 設定 Overlay ──────────────────────────────────────────────
@@ -614,29 +567,17 @@ function openSettings() {
   _duckOverlay();
 }
 
-function openPartyOverlay() {
-  var ov = document.getElementById("party-overlay");
-  if (ov) { renderSideParty(); ov.style.display = "flex"; _duckOverlay(); }
-}
-
-function closePartyOverlay() {
-  var ov = document.getElementById("party-overlay");
-  if (ov) { ov.style.display = "none"; _unduckOverlay(); }
-}
+function openPartyOverlay() {}
+function closePartyOverlay() {}
 
 function closeSettings() {
   var overlay = document.getElementById("settings-overlay");
   if (overlay) overlay.style.display = "none";
   _unduckOverlay();
-  var onMap    = document.getElementById("screen-map")    && document.getElementById("screen-map").style.display    !== "none";
-  var onCombat = document.getElementById("screen-combat") && document.getElementById("screen-combat").style.display !== "none";
+  var onMap = document.getElementById("screen-map") && document.getElementById("screen-map").style.display !== "none";
   if (_tut.mazeEnabled && !_tut.mazeDone) {
     if (onMap) { setTimeout(tryShowMazeTutorial, 100); }
     else       { _tut.mazePending = true; }
-  }
-  if (_tut.combatEnabled && !_tut.combatIntroDone) {
-    if (onCombat) { setTimeout(tryShowCombatIntroTutorial, 100); }
-    else          { _tut.combatPending = true; }
   }
 }
 
@@ -1016,117 +957,29 @@ function getTargetableEnemies() {
   return [];
 }
 
-function getValidItemTargets(item) {
-  var side = item.targetSide || "ally";
-  if (side === "enemy") return getTargetableEnemies();
-  // "ally" — includes player + living allies
-  var targets = [currentPlayer];
-  for (var ai = 0; ai < currentAllies.length; ai++) {
-    if (!currentAllies[ai].knockedOut) targets.push(currentAllies[ai]);
-  }
-  return targets;
-}
-
+// 使用道具：呼叫物品的 effect 函式（新版物品格式，effect 是函式）
+// 物品格式：{ name: "藥水", effect: onPotionHeal, desc: "可以回復生命的藥水" }
 function onUseItem(idx) {
   var item = currentPlayer.inventory[idx];
   if (!item) return;
 
-  var targets = getValidItemTargets(item);
-
-  // If only one valid target, skip selection UI and apply immediately
-  if (targets.length <= 1) {
-    applyItemToTarget(idx, targets[0] || currentPlayer);
-    return;
-  }
-
-  // Multiple targets — show selection panel
-  // Disable action buttons first, then re-show player-action-zone so
-  // target-select-panel (which lives inside it) stays accessible.
   setCombatButtonsEnabled(false);
-  var pZone = document.getElementById("player-action-zone");
-  if (pZone) pZone.style.display = "flex";
-
-  pendingItemIdx = idx;
-
-  var panel = document.getElementById("target-select-panel");
-  var btns  = document.getElementById("target-select-buttons");
-  if (!panel || !btns) { applyItemToTarget(idx, currentPlayer); return; }
-
-  var title = document.getElementById("target-select-title");
-  if (title) title.textContent = "🎒 選擇使用對象：" + item.name;
-
-  btns.innerHTML = "";
-  targets.forEach(function(t, ti) {
-    var btn = document.createElement("button");
-    btn.className = "btn btn-defend";
-    btn.style.flex = "none";
-
-    // Build label
-    var isPlayer = (t === currentPlayer);
-    var hpStr = t.hp + "/" + (t.maxHp || t.hp);
-    btn.textContent = (isPlayer ? "🧙 " : (t.icon || "👥 ")) +
-                      (t.name || "玩家") + " (" + hpStr + ")";
-
-    btn.onclick = (function(target) {
-      return function() {
-        panel.style.display = "none";
-        applyItemToTarget(pendingItemIdx, target);
-        pendingItemIdx = -1;
-      };
-    })(t);
-    btns.appendChild(btn);
-  });
-  panel.style.display = "flex";
-}
-
-function applyItemToTarget(idx, target) {
-  var item = currentPlayer.inventory[idx];
-  if (!item) return;
-
-  setCombatButtonsEnabled(false);
-
-  var eff  = item.effect;
-  var msgs = [];
-  var isPlayer = (target === currentPlayer);
-
-  // HP heal — works on player or ally
-  var healAmt = eff.hp || eff.allyHeal || 0;
-  if (healAmt > 0) {
-    if (isPlayer) {
-      updatePlayerHp(healAmt);
-      msgs.push("回復 " + healAmt + " HP");
-    } else {
-      target.hp = Math.min(target.maxHp, target.hp + healAmt);
-      updateAllyHpArea();
-      msgs.push((target.icon || "") + "「" + target.name + "」回復 " + healAmt + " HP");
-    }
-  }
-
-  // Self-damage (e.g. 狂暴藥水) — always hits player regardless of target
-  if (eff.selfHp) {
-    updatePlayerHp(eff.selfHp);
-    msgs.push(eff.selfHp + " HP（玩家自身）");
-  }
-
-  // ATK buff — applies to selected target
-  if (eff.tempAtk) {
-    target.tempAtk = (target.tempAtk || 0) + eff.tempAtk;
-    if (isPlayer) updateHUD();
-    else updateAllyHpArea();
-    msgs.push((isPlayer ? "" : (target.icon || "") + "「" + target.name + "」") + "ATK +" + eff.tempAtk);
-  }
-
-  // DEF buff — applies to selected target
-  if (eff.tempDef) {
-    target.tempDef = (target.tempDef || 0) + eff.tempDef;
-    if (isPlayer) updateHUD();
-    else updateAllyHpArea();
-    msgs.push((isPlayer ? "" : (target.icon || "") + "「" + target.name + "」") + "DEF +" + eff.tempDef);
-  }
 
   currentPlayer.inventory.splice(idx, 1);
   pendingItemIdx = -1;
-  logMessage("🧪 使用「" + item.name + "」：" + msgs.join("、") + "！");
+  logMessage("🧪 使用「" + item.name + "」！");
+
+  try {
+    if (typeof item.effect === "function") {
+      item.effect();
+    } else if (item.effect != null) {
+      // effect 可以是 null（沒有效果的物品）；有填但不是函式才提醒
+      logMessage("💥 「" + item.name + "」的 effect 不是函式，什麼事都沒發生。");
+    }
+  } catch (e) {
+    logMessage("💥 物品效果發生錯誤：" + e.message);
+  }
+
   renderInventoryButtons(false);
 
   // 道具視為一次行動：消耗圖示並推進到下一個行動者（同伴 → 敵人）
@@ -1399,54 +1252,59 @@ function applyCameraTransform() {
   visionRadius = Math.ceil(half);
 }
 
-function applyTileStyle(tile, tileType, x, y) {
-  var sm = {};
-  sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  sm[MAP_TILE.CHEST]      = { cls: "tile--chest",    src: "assets/picture/寶箱.png",  alt: "寶箱",   emoji: "📦" };
-  var _enemySrc = "assets/picture/哥布林.png";
-  if (tileType === MAP_TILE.ENEMY && x !== undefined && y !== undefined) {
-    var _ed = _pickEnemy(x, y);
-    if (_ed && _ed.img) _enemySrc = _ed.img;
-  }
-  sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: _enemySrc,                   alt: "敵人",   emoji: "👺" };
-  sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/門鎖.png"    ,alt: "門",    emoji: "🚪" };
-  sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "assets/picture/小遊戲靶.png",alt: "小遊戲", emoji: "🌀" };
-  sm[MAP_TILE.SHOP]       = { cls: "tile--shop",     src: "assets/picture/商店.png"    ,alt: "商店",   emoji: "🛒" };
-  sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/黑暗巨龍.png",alt: "魔王",   emoji: "👿" };
-  sm[MAP_TILE.PORTAL]     = { cls: "tile--portal",   src: "assets/picture/傳送門.png",  alt: "傳送門", emoji: "⚡" };
+// 未定義地塊：每個編號只提示一次
+var _warnedUnknownTiles = {};
+function _warnUnknownTile(code) {
+  if (_warnedUnknownTiles[code]) return;
+  _warnedUnknownTiles[code] = true;
+  showMapMessage("⚠️ 你指定了編號 " + code + " 的地塊，但找不到這個地塊。");
+}
 
-  var info = sm[tileType];
-  if (!info) { tile.classList.add("tile--empty"); return; }
-  tile.classList.add(info.cls);
-  if (info.src) {
-    var img = document.createElement("img");
-    img.src = info.src; img.alt = info.alt; img.className = "sprite";
-    img.onerror = function() {
-      if (img.parentNode) img.parentNode.removeChild(img);
-      if (info.emoji) { var sp = document.createElement("span"); sp.className = "tile-emoji"; sp.textContent = info.emoji; tile.appendChild(sp); }
-    };
-    tile.appendChild(img);
-  } else if (info.emoji) {
-    var sp = document.createElement("span");
-    sp.className = "tile-emoji"; sp.textContent = info.emoji;
-    tile.appendChild(sp);
+function applyTileStyle(tile, tileType, x, y) {
+  if (tileType === MAP_TILE.WALL) { tile.classList.add("tile--wall"); return; }
+  if (tileType === MAP_TILE.EMPTY || tileType === MAP_TILE.START) {
+    tile.classList.add("tile--empty"); return;
+  }
+
+  // 自訂事件地塊（10~255）：外觀由 tile.js 的 tileDefs 定義
+  var def = (typeof tileDefs !== "undefined") ? tileDefs[tileType] : null;
+  if (def) {
+    tile.classList.add("tile--event");
+    if (def.color) tile.style.background = def.color;
+    if (def.icon) {
+      var iconImg = document.createElement("img");
+      iconImg.src = def.icon; iconImg.alt = ""; iconImg.className = "sprite";
+      tile.appendChild(iconImg);
+    }
+    return;
+  }
+
+  // 未定義的地塊：一般模式當空白格；DEV_MODE 標紅提醒開發者
+  if (DEV_MODE) {
+    tile.classList.add("tile--unknown");
+    var mark = document.createElement("span");
+    mark.className = "tile-emoji";
+    mark.textContent = "?";
+    tile.appendChild(mark);
+    _warnUnknownTile(tileType);
+  } else {
+    tile.classList.add("tile--empty");
   }
 }
 
 // ── 鍵盤移動 ─────────────────────────────────────────────────
 function closeAnyOverlay() {
   var minimapOverlay   = document.getElementById("minimap-overlay");
-  var inventoryOverlay = document.getElementById("inventory-overlay");
   var inspectPanel     = document.getElementById("inspect-panel");
   var shopScreen       = document.getElementById("screen-shop");
   var settingsOverlay  = document.getElementById("settings-overlay");
+  var devPanelOverlay  = document.getElementById("dev-panel-overlay");
+  var eventPanel       = document.getElementById("event-panel");
 
-  var partyOverlay     = document.getElementById("party-overlay");
+  if (devPanelOverlay  && devPanelOverlay.style.display  !== "none") { closeDevPanel();       return true; }
+  if (eventPanel       && eventPanel.style.display       !== "none") { game.panel = "";       return true; }
   if (settingsOverlay  && settingsOverlay.style.display  !== "none") { closeSettings();       return true; }
-  if (partyOverlay     && partyOverlay.style.display     !== "none") { closePartyOverlay();   return true; }
   if (minimapOverlay   && minimapOverlay.style.display   !== "none") { closeMiniMapOverlay(); return true; }
-  if (inventoryOverlay && inventoryOverlay.style.display !== "none") { closeInventory();      return true; }
   if (inspectPanel     && inspectPanel.style.display     !== "none") { hideEnemyInfo();       return true; }
   if (shopScreen       && shopScreen.style.display       !== "none") { closeShop();           return true; }
   return false;
@@ -1455,13 +1313,17 @@ function closeAnyOverlay() {
 function updateControlsHint() {
   var el = document.getElementById("controls-hint");
   if (!el) return;
-  el.textContent = "WASD / ↑↓←→ 移動　M 地圖　B 背包" +
+  el.textContent = "WASD / ↑↓←→ 移動　M 地圖" +
                    (shopUnlocked ? "　F 商店" : "") +
                    "　ESC 設定　C 關閉";
 }
 
 document.addEventListener("keydown", function(e) {
   if (gameOver) return;
+
+  // 焦點在輸入框（開發模式編輯器等）時不攔截按鍵，否則打 WASD 會讓角色亂跑
+  var tag = e.target && e.target.tagName;
+  if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return;
 
   if (e.key === "Escape") {
     e.preventDefault();
@@ -1485,8 +1347,12 @@ document.addEventListener("keydown", function(e) {
   var screen = document.getElementById("screen-map");
   if (!screen || screen.style.display === "none") return;
 
+  // 任何 overlay 開啟時，不移動角色
+  var _eventPanel = document.getElementById("event-panel");
+  if (_eventPanel && _eventPanel.style.display !== "none") return;
+  if (typeof isDevPanelOpen === "function" && isDevPanelOpen()) return;
+
   if (e.key === "m" || e.key === "M") { openMiniMapOverlay(); return; }
-  if (e.key === "b" || e.key === "B") { openInventory();      return; }
   if ((e.key === "f" || e.key === "F") && shopUnlocked) { openShop(); return; }
 
   var dx = 0, dy = 0;
@@ -1503,32 +1369,11 @@ document.addEventListener("keydown", function(e) {
   var targetTile = currentMap[newY][newX];
   if (targetTile === MAP_TILE.WALL) return;
 
-  if (targetTile === MAP_TILE.DOOR) {
-    if (currentPlayer.keys <= 0) {
-      playSound("locked_door"); showMapMessage("門被鎖住了！你需要一把鑰匙才能通過。"); return;
-    }
-    updatePlayerKeys(-1);
-    currentMap[newY][newX] = MAP_TILE.EMPTY;
-    playSound("unlock_door"); showMapMessage("你用鑰匙打開了門！剩餘鑰匙：" + currentPlayer.keys);
-    // 開門觸發對話
-    if (typeof dialogueTriggers !== "undefined") {
-      for (var _di = 0; _di < dialogueTriggers.length; _di++) {
-        var _dt = dialogueTriggers[_di];
-        if (_dt.doorX !== undefined &&
-            _dt.doorX === newX && _dt.doorY === newY &&
-            !_firedDialogueTriggers[_dt.id]) {
-          _firedDialogueTriggers[_dt.id] = true;
-          showDialogue(_dt.lines);
-          break;
-        }
-      }
-    }
-  }
-
   player.x = newX; player.y = newY;
   renderMap();
   checkTileEvent(newX, newY);
   checkDialogueTriggers(newX, newY);
+  if (typeof checkGameEndings === "function") checkGameEndings();
 });
 
 // ── 格子事件 ──────────────────────────────────────────────────
@@ -1552,159 +1397,43 @@ function checkDialogueTriggers(x, y) {
   }
 }
 
-function checkTileEvent(x, y) {
-  var t = currentMap[y][x];
-  if      (t === MAP_TILE.CHEST)      triggerChest(x, y);
-  else if (t === MAP_TILE.ENEMY)      triggerEnemy(x, y);
-  else if (t === MAP_TILE.MINI_GAME)  triggerMiniGame(x, y);
-  else if (t === MAP_TILE.SHOP)       triggerShop();
-  else if (t === MAP_TILE.FINAL_BOSS) triggerFinalBoss(x, y);
-  else if (t === MAP_TILE.PORTAL)     triggerPortal(x, y);
-}
-
-function _findPortalDestination(x, y) {
-  for (var pid in portals) {
-    var pair = portals[pid];
-    if (pair.length === 2) {
-      if (pair[0][0] === y && pair[0][1] === x) return { x: pair[1][1], y: pair[1][0] };
-      if (pair[1][0] === y && pair[1][1] === x) return { x: pair[0][1], y: pair[0][0] };
-    }
-  }
-  return null;
-}
-
-function triggerPortal(x, y) {
-  var dest = _findPortalDestination(x, y);
-  if (dest) {
-    player.x = dest.x;
-    player.y = dest.y;
-    renderMap();
-    playSound("teleport");
-    logMessage("你踏入了傳送門，瞬間移動到另一個地點！");
-  } else {
-    showMapMessage("傳送門似乎尚未連接任何地點...");
-  }
-}
-
-function triggerChest(x, y) {
-  var reward = chestRewards[Math.floor(Math.random() * chestRewards.length)];
-  playSound("chest");
-  if (reward.money) updatePlayerMoney(reward.money);
-  if (reward.hp)    updatePlayerHp(reward.hp);
-  if (reward.atk)   updatePlayerAtk(reward.atk);
-  if (reward.def)   updatePlayerDef(reward.def);
-  if (reward.reviveAlly) {
-    var dead = currentAllies.filter(function(a) { return a.knockedOut; });
-    if (dead.length > 0) {
-      dead[0].hp = Math.max(1, Math.floor(dead[0].maxHp / 2));
-      dead[0].knockedOut = false;
-      showMapMessage("📦 " + reward.message + "「" + dead[0].name + "」已復活！");
-    } else {
-      showMapMessage("📦 " + reward.message + "（隊伍無人陣亡，轉換為 30 金幣）");
-      updatePlayerMoney(30);
-    }
-    currentMap[y][x] = MAP_TILE.EMPTY;
-    renderMap(); return;
-  }
-  currentMap[y][x] = MAP_TILE.EMPTY;
-  showMapMessage("📦 " + reward.message);
-  renderMap();
-}
-
-function _pickEnemy(x, y) {
-  var key = y + "," + x;
-  if (tileEnemyMap && tileEnemyMap[key]) {
-    var name = tileEnemyMap[key];
-    for (var ei = 0; ei < enemies.length; ei++) {
-      if (enemies[ei].name === name) return enemies[ei];
-    }
-    console.warn("tileEnemyMap 指定的怪物「" + name + "」在 enemies 中找不到，改用隨機。");
-  }
-  var pool = enemies.slice();
-  if (pool.length === 0) return null;
-  var posRng = makeRng(SESSION_SEED + y * 1000 + x);
-  return pool[Math.floor(posRng() * pool.length)];
-}
-
-function playEncounterTransition(callback) {
-  if (typeof AudioSystem !== "undefined") AudioSystem.stopBgmNow();
-  var el = document.getElementById("encounter-transition");
-  if (!el) { playSound("sword"); callback(); return; }
-  el.style.display = "flex";
-  el.style.animation = "none";
-  var slash = el.querySelector(".encounter-slash");
-  if (slash) { slash.style.animation = "none"; }
-  void el.offsetWidth;
-  el.style.animation = "";
-  if (slash) slash.style.animation = "";
-  playSound("sword");
-  setTimeout(function() {
-    callback();
-    setTimeout(function() { el.style.display = "none"; }, 50);
-  }, 800);
-}
-
-function triggerEnemy(x, y) {
-  var ed = _pickEnemy(x, y);
-  if (!ed) {
-    currentMap[y][x] = MAP_TILE.EMPTY;
-    renderMap();
+// 呼叫事件函式（依名稱到 window 上找，錯誤時顯示提示）
+function _callTileEventFn(name) {
+  var fn = window[name];
+  if (typeof fn !== "function") {
+    showMapMessage("💥 找不到事件函式「" + name + "」，記得先按「套用程式碼」！");
     return;
   }
-  activeClones = []; savedBoss = null; pairedFightEnemy = null;
-  bossClonePhase = { active: false, boss: null, clones: [] }; enemyCloneTurnCursor = 0;
-  currentEnemy = {
-    x: x, y: y,
-    name: ed.name, hp: ed.hp, maxHp: ed.maxHp,
-    atk: ed.atk,  def: ed.def, spd: ed.spd || 0, reward: ed.reward,
-    isMiniBarrier: ed.isMiniBarrier || false, img: ed.img || null
-  };
+  try {
+    fn();
+  } catch (e) {
+    showMapMessage("💥 事件發生錯誤：" + e.message);
+  }
+}
 
-  if (ed.isPaired) {
-    var companion = {
-      name: ed.name, hp: ed.hp, maxHp: ed.maxHp,
-      atk: ed.atk,  def: ed.def, spd: ed.spd || 0, reward: { money: 0 },
-      isMiniBarrier: ed.isMiniBarrier || false, img: ed.img || null
-    };
-    pairedFightEnemy = { x: x, y: y, reward: ed.reward, maxHp: ed.hp, name: ed.name };
-    activeClones = [currentEnemy, companion];
+function checkTileEvent(x, y) {
+  // 1. 座標掛接表（map.js 的 tileEvents，優先於地塊本身的事件）
+  if (typeof tileEvents !== "undefined") {
+    var entry = tileEvents[x + "," + y];
+    if (entry) {
+      _callTileEventFn(typeof entry === "string" ? entry : entry.fn);
+      return;
+    }
   }
 
-  playEncounterTransition(function() { startCombat(); });
+  // 2. 自訂事件地塊（10~255，定義在 tile.js）
+  var t = currentMap[y][x];
+  if (t < 10) return;
+  var def = (typeof tileDefs !== "undefined") ? tileDefs[t] : null;
+  if (!def) {
+    if (DEV_MODE) _warnUnknownTile(t);
+    return;
+  }
+  if (def.event) _callTileEventFn(def.event);
 }
 
-function triggerFinalBoss(x, y) {
-  activeClones = []; savedBoss = null; pairedFightEnemy = null;
-  bossClonePhase = { active: false, boss: null, clones: [] }; enemyCloneTurnCursor = 0;
-  currentEnemy = {
-    x: x, y: y,
-    name: finalBoss.name, hp: finalBoss.hp, maxHp: finalBoss.maxHp,
-    atk: finalBoss.atk,   def: finalBoss.def, spd: finalBoss.spd || 0, reward: finalBoss.reward,
-    isFinalBoss: true, img: finalBoss.img || null
-  };
-  playEncounterTransition(function() {
-    if (typeof dialogues !== "undefined" &&
-        dialogues.boss_pre && dialogues.boss_pre.length > 0) {
-      showDialogue(dialogues.boss_pre, function() { startCombat(); });
-    } else {
-      startCombat();
-    }
-  });
-}
 
 // ── 商店 ─────────────────────────────────────────────────────
-function triggerShop() {
-  var isFirst = !shopUnlocked;
-  shopUnlocked = true;
-  updateControlsHint();
-  if (isFirst && typeof dialogues !== "undefined" &&
-      dialogues.shop_first && dialogues.shop_first.length > 0) {
-    showDialogue(dialogues.shop_first, function() { openShop(); });
-  } else {
-    openShop();
-  }
-}
-
 function openShop() {
   if (!_shopOpen) { _shopOpen = true; _duckOverlay(); }
   var list = document.getElementById("shop-item-list");
@@ -1716,33 +1445,8 @@ function openShop() {
     h.textContent = title; list.appendChild(h);
   }
 
-  sec("🔧 永久道具");
-  shopItems.filter(function(it) { return !it.isConsumable; })
-           .forEach(function(it) { renderShopCard(it, list); });
-
-  sec("🧪 戰鬥消耗品（加入背包，戰鬥中手動使用）");
-  shopItems.filter(function(it) { return it.isConsumable; })
-           .forEach(function(it) { renderShopCard(it, list); });
-
-  sec("⚔️ 技能購買");
-  var buyable = skillDefs.filter(function(s) {
-    return s.type === "shop" && currentPlayer.skills.indexOf(s.id) === -1;
-  });
-  if (buyable.length === 0) {
-    var n = document.createElement("div"); n.className = "shop-card-desc"; n.style.padding = "6px 0";
-    n.textContent = "（已購買所有技能）"; list.appendChild(n);
-  } else {
-    buyable.forEach(function(s) { renderSkillCard(s, list); });
-  }
-
-  sec("🔮 技能合成");
-  skillDefs.filter(function(s) { return s.type === "craft"; })
-           .forEach(function(s) { renderCraftCard(s, list); });
-
-  sec("👥 招募同伴（最多 2 人，參戰後每回合可手動指派行動）");
-  if (typeof allyDefs !== "undefined") {
-    allyDefs.forEach(function(def) { renderAllyCard(def, list); });
-  }
+  sec("🔧 道具");
+  shopItems.forEach(function(it) { renderShopCard(it, list); });
 
   document.getElementById("shop-player-money").textContent = currentPlayer.money;
   renderShopSidebar();
@@ -1750,33 +1454,6 @@ function openShop() {
 }
 
 function renderShopSidebar() {
-  var area = document.getElementById("shop-party-list");
-  if (!area) return;
-  area.innerHTML = "";
-
-  function makeCard(icon, name, hp, maxHp, atk, def, isKO) {
-    var pct = maxHp > 0 ? Math.max(0, hp / maxHp * 100) : 0;
-    var barColor = isKO ? "#b71c1c" : (pct < 30 ? "#ef5350" : "#4caf50");
-    var card = document.createElement("div");
-    card.className = "shop-party-card" + (isKO ? " shop-party-ko" : "");
-    card.innerHTML =
-      '<div class="shop-party-name">' + icon + " " + name + (isKO ? " 💀" : "") + '</div>' +
-      '<div class="shop-party-bar-wrap"><div class="shop-party-bar-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
-      '<div class="shop-party-stats">❤️ ' + hp + '/' + maxHp + '</div>' +
-      '<div class="shop-party-stats">⚔️ ' + atk + '　🛡️ ' + def + '</div>';
-    area.appendChild(card);
-  }
-
-  makeCard("🧙", currentPlayer.name,
-    currentPlayer.hp, currentPlayer.maxHp,
-    currentPlayer.atk + (currentPlayer.tempAtk || 0),
-    currentPlayer.def + (currentPlayer.tempDef || 0), false);
-
-  for (var i = 0; i < currentAllies.length; i++) {
-    var a = currentAllies[i];
-    makeCard(a.icon, a.name, a.hp, a.maxHp, a.atk, a.def, a.knockedOut);
-  }
-
   var invArea = document.getElementById("shop-inventory-list");
   if (!invArea) return;
   invArea.innerHTML = "";
@@ -1832,51 +1509,8 @@ function renderShopCard(item, container) {
   container.appendChild(card);
 }
 
-function renderSkillCard(skill, container) {
-  var card = document.createElement("div"); card.className = "shop-card shop-card--skill";
-  var left = document.createElement("div"); left.className = "shop-card-left";
-  var nm = document.createElement("div"); nm.className = "shop-card-name"; nm.textContent = skill.icon + " " + skill.name;
-  var ds = document.createElement("div"); ds.className = "shop-card-desc"; ds.textContent = computeSkillDesc(skill, currentPlayer.atk);
-  left.appendChild(nm); left.appendChild(ds);
-  var right = document.createElement("div"); right.className = "shop-card-right";
-  var pr = document.createElement("div"); pr.className = "shop-card-price"; pr.textContent = "💰 " + skill.price;
-  var btn = document.createElement("button"); btn.className = "btn btn-shop"; btn.textContent = "購買";
-  btn.onclick = function() { buySkill(skill); };
-  right.appendChild(pr); right.appendChild(btn);
-  card.appendChild(left); card.appendChild(right);
-  container.appendChild(card);
-}
-
-function renderCraftCard(skill, container) {
-  var card = document.createElement("div"); card.className = "shop-card shop-card--craft";
-  var owned  = currentPlayer.skills.indexOf(skill.id) !== -1;
-  var hasAll = skill.recipe.every(function(r) { return currentPlayer.skills.indexOf(r) !== -1; });
-
-  var left = document.createElement("div"); left.className = "shop-card-left";
-  var nm = document.createElement("div"); nm.className = "shop-card-name";
-  nm.textContent = skill.icon + " " + skill.name + (owned ? " ✅" : "");
-  var ds = document.createElement("div"); ds.className = "shop-card-desc"; ds.textContent = computeSkillDesc(skill, currentPlayer.atk);
-  var rc = document.createElement("div"); rc.className = "shop-card-recipe";
-  rc.textContent = "需要：" + skill.recipe.map(function(r) {
-    var d = getSkillDef(r); var have = currentPlayer.skills.indexOf(r) !== -1;
-    return (d ? d.name : r) + (have ? "✓" : "✗");
-  }).join(" + ");
-  left.appendChild(nm); left.appendChild(ds); left.appendChild(rc);
-
-  var right = document.createElement("div"); right.className = "shop-card-right";
-  var btn = document.createElement("button"); btn.className = "btn btn-shop";
-  if      (owned)  { btn.textContent = "已擁有"; btn.disabled = true; }
-  else if (hasAll) { btn.textContent = "合成！"; btn.onclick = function() { craftSkill(skill.id); }; }
-  else             { btn.textContent = "材料不足"; btn.disabled = true; }
-  right.appendChild(btn);
-  card.appendChild(left); card.appendChild(right);
-  container.appendChild(card);
-}
 
 function isStatCapped(item) {
-  if (item.effect.atk   && currentPlayer.atk   >= STAT_CAP.atk) return true;
-  if (item.effect.def   && currentPlayer.def   >= STAT_CAP.def) return true;
-  if (item.effect.maxHp && currentPlayer.maxHp >= STAT_CAP.hp)  return true;
   return false;
 }
 
@@ -1892,56 +1526,23 @@ function buyShopItem(item) {
   }
   updatePlayerMoney(-price);
   shopPurchaseCounts[item.name] = (shopPurchaseCounts[item.name] || 0) + 1;
-  if (!item.isConsumable) {
-    if (item.effect.reviveAlly) {
-      var deadAllies = currentAllies.filter(function(a) { return a.knockedOut; });
-      if (deadAllies.length === 0) { showShopMessage("目前沒有陣亡的同伴！"); return; }
-      var revived = deadAllies[0];
-      revived.hp = Math.max(1, Math.floor(revived.maxHp / 2));
-      revived.knockedOut = false;
-      showShopMessage("✨ 「" + revived.icon + " " + revived.name + "」已復活！（HP:" + revived.hp + "）");
-      document.getElementById("shop-player-money").textContent = currentPlayer.money;
-      return;
-    }
-    if (item.effect.allAllyAtk) {
-      if (currentAllies.length === 0) { showShopMessage("目前沒有同伴！"); return; }
-      for (var ai = 0; ai < currentAllies.length; ai++) currentAllies[ai].atk += item.effect.allAllyAtk;
-      showShopMessage("💪 所有同伴 ATK +" + item.effect.allAllyAtk + "！");
-      document.getElementById("shop-player-money").textContent = currentPlayer.money;
-      return;
-    }
-    if (item.effect.atk)   updatePlayerAtk(item.effect.atk);
-    if (item.effect.def)   updatePlayerDef(item.effect.def);
-    if (item.effect.hp)    updatePlayerHp(item.effect.hp);
-    if (item.effect.maxHp) {
-      currentPlayer.maxHp += item.effect.maxHp;
-      currentPlayer.hp     = Math.min(currentPlayer.hp + item.effect.maxHp, currentPlayer.maxHp);
-      updateHUD();
-    }
-    playSound("buy");
-    showShopMessage("購買了「" + item.name + "」！");
-  } else {
-    currentPlayer.inventory.push({ name: item.name, effect: item.effect, desc: item.desc, targetSide: item.targetSide, targetType: item.targetType });
-    updateHUD();
-    playSound("buy");
-    showShopMessage("🎒 「" + item.name + "」已加入背包！戰鬥中可使用。");
-  }
-  document.getElementById("shop-player-money").textContent = currentPlayer.money;
-}
 
-function buySkill(skill) {
-  if (currentPlayer.money < skill.price) {
-    showShopMessage("金幣不足！需要 " + skill.price + " 金幣。"); return;
+  if (item.isConsumable) {
+    // 消耗品 → 進背包，之後再使用（effect 是函式）
+    currentPlayer.inventory.push({ name: item.name, effect: item.effect, desc: item.desc || "" });
+    renderShopSidebar();
+    showShopMessage("購買了「" + item.name + "」，已放進背包！");
+  } else {
+    // 立即生效：直接呼叫 effect 函式
+    try {
+      if (typeof item.effect === "function") item.effect();
+    } catch (e) {
+      showShopMessage("💥 物品效果發生錯誤：" + e.message);
+    }
+    showShopMessage("購買了「" + item.name + "」！");
   }
-  if (currentPlayer.skills.indexOf(skill.id) !== -1) {
-    showShopMessage("你已經擁有「" + skill.name + "」了！"); return;
-  }
-  updatePlayerMoney(-skill.price);
-  currentPlayer.skills.push(skill.id);
   playSound("buy");
-  showShopMessage("✨ 習得技能「" + skill.icon + " " + skill.name + "」！");
   document.getElementById("shop-player-money").textContent = currentPlayer.money;
-  openShop();
 }
 
 function showShopMessage(msg) {
@@ -3246,10 +2847,6 @@ function runNextEnemyTurn() {
         }
         if (fd > 0) { updatePlayerHp(-fd); showDamagePopup(_attacker.name, fd, true); }
       }, function() {
-        if (currentPlayer.hp <= 0) {
-          logMessage("💀 你被打倒了..."); playSound("defeat");
-          setTimeout(function() { triggerGameOver(); }, 1500); return;
-        }
         _afterEnemyAction();
       });
     })(attacker, dmg, taunt1);
@@ -3317,10 +2914,6 @@ function runNextEnemyTurn() {
         }
         if (fd > 0) { updatePlayerHp(-fd); showDamagePopup(cloneLabel, fd, true); }
       }, function() {
-        if (currentPlayer.hp <= 0) {
-          logMessage("💀 你被打倒了..."); playSound("defeat");
-          setTimeout(function() { triggerGameOver(); }, 1500); return;
-        }
         _afterEnemyAction();
       });
     })(dmg2, taunt2, res2);
@@ -3424,10 +3017,6 @@ function runNextEnemyTurn() {
         logMessage("⚠️ 你的攻擊力被壓制！接下來 2 回合僅有一半！");
       }
     }, function() {
-      if (currentPlayer.hp <= 0) {
-        logMessage("💀 你被打倒了..."); playSound("defeat");
-        setTimeout(function() { triggerGameOver(); }, 1500); return;
-      }
       _afterEnemyAction();
     });
   })(dmg, taunt3, res);
@@ -3481,7 +3070,8 @@ function startNewCombatRound() {
 
 // ── 等級與經驗值系統 ─────────────────────────────────────────
 function gainExp(char, amount) {
-  if (!MAX_LEVEL || !LEVEL_QUOTAS) return;
+  if (typeof MAX_LEVEL === "undefined" || typeof LEVEL_QUOTAS === "undefined" ||
+      typeof LEVELUP_BONUS === "undefined") return;
   char.exp   = (char.exp   || 0) + amount;
   char.level = (char.level || 1);
   var leveled = false;
@@ -3661,9 +3251,11 @@ function triggerGameOver()  { gameOver = true; showScreen("screen-gameover"); }
 function triggerGameClear() { gameOver = true; showScreen("screen-clear"); }
 
 function restartGame() {
+  // 關閉結局面板，並清除學員在 game 上設定的自訂屬性
+  if (typeof _closeEndingPanel === "function") _closeEndingPanel();
+  if (typeof _resetGameCustomProps === "function") _resetGameCustomProps();
   // 重置教學狀態（保留開關設定）
-  if (_tut.mazeEnabled)   { _tut.mazeDone = false; }
-  if (_tut.combatEnabled) { _tut.combatIntroDone = false; _tut.halfTokenDone = false; _tut.missDone = false; _tut.combatDone = false; }
+  if (_tut.mazeEnabled) { _tut.mazeDone = false; }
   gameOver = false;
   player.x = playerStart.x; player.y = playerStart.y;
   currentPlayer.level       = playerStats.level || 1;
@@ -3673,7 +3265,7 @@ function restartGame() {
   currentPlayer.atk       = playerStats.atk;
   currentPlayer.def       = playerStats.def;
   currentPlayer.money     = playerStats.money;
-  currentPlayer.keys      = playerStats.keys;
+  currentPlayer.keys      = playerStats.keys || 0;
   currentPlayer.skills    = (playerStats.skills || ["power_strike"]).slice();
   currentPlayer.inventory = [];
   currentPlayer.tempAtk   = 0;
@@ -3712,26 +3304,6 @@ function showMapMessage(msg) {
   showMapMessage._timer = setTimeout(function() { el.style.opacity = "0"; }, 2500);
 }
 
-// ── 小遊戲橋接 ────────────────────────────────────────────────
-function onMiniGameEnd(result) {
-  stopMiniGame(); showScreen("screen-map");
-  if (result) {
-    updatePlayerKeys(1); showMapMessage("🎉 小遊戲通關！你獲得了一把鑰匙！"); playSound("key");
-    if (currentMiniGameTile) {
-      currentMap[currentMiniGameTile.y][currentMiniGameTile.x] = MAP_TILE.EMPTY;
-    }
-  } else {
-    showMapMessage("小遊戲失敗，再接再厲！");
-  }
-  currentMiniGameTile = null; renderMap();
-}
-
-var currentMiniGameTile = null;
-function triggerMiniGame(x, y) {
-  currentMiniGameTile = { x: x, y: y };
-  showScreen("screen-minigame"); startMiniGame();
-}
-
 // ── 對話系統 ─────────────────────────────────────────────────
 function showDialogue(lines, callback) {
   dialogueQueue = lines.slice(); dialogueCallback = callback || null;
@@ -3757,10 +3329,8 @@ function advanceDialogue() {
 //  教學系統
 // ============================================================
 var TUTORIAL_PAGES = [
-  { text: "探索迷宮並打敗最終魔王吧！",                         img: "assets/picture/黑暗巨龍.png" },
-  { text: "擊敗擋路的怪物，順便獲得金幣吧！",                   img: "assets/picture/哥布林.png" },
+  { text: "探索迷宮吧！踩到事件格會觸發各種事件", img: null },
   { text: "地圖上偶爾也會散落寶箱\n\n經過商店時順便進去看看吧", img: "assets/picture/寶箱.png" },
-  { text: "透過玩完小遊戲獲得鑰匙以抵達更深處",                  img: "assets/picture/小遊戲靶.png" },
   { text: "有時也會出現雙向傳送門\n靠著它去往隱藏地區吧",        img: null }
 ];
 
@@ -3860,48 +3430,20 @@ function _tutorialKeyHandler(e) {
 
 // ── 教學狀態 ──────────────────────────────────────────────
 var _tut = {
-  mazeEnabled   : true,   // 迷宮教學開關
-  combatEnabled : true,   // 戰鬥教學開關
-  mazeDone      : false,  // 已顯示過一次迷宮教學
-  mazePending   : false,  // 等待下次進入迷宮時觸發
-  combatIntroDone : false,  // 已顯示過戰鬥入場教學
-  combatPending   : false,  // 等待下次進入戰鬥時觸發
-  halfTokenDone   : false,  // 已顯示過半行動點教學
-  missDone        : false,  // 已顯示過 miss 教學
-  combatDone      : false,  // 已完成一次戰鬥（用於自動關閉戰鬥教學）
+  mazeEnabled   : false,  // 迷宮教學開關（預設關閉）
+  mazeDone      : false,
+  mazePending   : false,
 };
-
-// ── 教學頁面定義 ─────────────────────────────────────────
-var TUTORIAL_COMBAT_INTRO = [
-                              {text: "選擇行動，設法戰勝眼前的敵人吧！", img: null},
-                              {text: "每個行動都會黃色的是行動點，\n消耗完畢就是對方回合", img:"./assets/picture/行動點.png"}
-                            ];
-var TUTORIAL_HALF_TOKEN   = { text: "當觸發爆擊時\n可獲得額外一次行動機會！", img:"./assets/picture/額外行動.png" };
-var TUTORIAL_MISS         = { text: "若失手 Miss 了\n將額外喪失一次行動機會！", img: null };
 
 // ── 設定 toggle 更新 UI ───────────────────────────────────
 function _updateTutorialToggles() {
   var mb = document.getElementById("toggle-maze-tutorial");
-  var cb = document.getElementById("toggle-combat-tutorial");
   if (mb) { mb.textContent = _tut.mazeEnabled ? "開" : "關"; mb.classList.toggle("off", !_tut.mazeEnabled); }
-  if (cb) { cb.textContent = _tut.combatEnabled ? "開" : "關"; cb.classList.toggle("off", !_tut.combatEnabled); }
 }
 
 function toggleMazeTutorialSetting() {
   _tut.mazeEnabled = !_tut.mazeEnabled;
   if (_tut.mazeEnabled) _tut.mazeDone = false;  // 重新開啟時重置
-  _updateTutorialToggles();
-}
-
-function toggleCombatTutorialSetting() {
-  _tut.combatEnabled = !_tut.combatEnabled;
-  if (_tut.combatEnabled) {
-    // 重新開啟時重置所有戰鬥教學
-    _tut.combatIntroDone = false;
-    _tut.halfTokenDone   = false;
-    _tut.missDone        = false;
-    _tut.combatDone      = false;
-  }
   _updateTutorialToggles();
 }
 
@@ -3915,26 +3457,9 @@ function tryShowMazeTutorial() {
   showTutorial(TUTORIAL_PAGES);
 }
 
-// ── 戰鬥教學觸發 ─────────────────────────────────────────
-function tryShowCombatIntroTutorial() {
-  _tut.combatPending = false;
-  if (!_tut.combatEnabled || _tut.combatIntroDone) return;
-  _tut.combatIntroDone = true;
-  setTimeout(function() { showTutorial(TUTORIAL_COMBAT_INTRO); }, 200);
-}
-
-function tryShowHalfTokenTutorial() {
-  if (!_tut.combatEnabled || _tut.halfTokenDone) return;
-  _tut.halfTokenDone = true;
-  showTutorial([TUTORIAL_HALF_TOKEN]);
-}
-
-function tryShowMissTutorial() {
-  if (!_tut.combatEnabled || _tut.missDone) return;
-  if (currentAllies.filter(function(a){ return !a.knockedOut; }).length === 0) return; // 隊伍 <2
-  _tut.missDone = true;
-  showTutorial([TUTORIAL_MISS]);
-}
+function tryShowCombatIntroTutorial() {}
+function tryShowHalfTokenTutorial() {}
+function tryShowMissTutorial() {}
 
 function notifyShopClosed() {
   if (_shopOpen) { _shopOpen = false; _unduckOverlay(); }
@@ -3948,18 +3473,17 @@ function notifyShopClosed() {
 
 // ── 初始化 ────────────────────────────────────────────────────
 window.onload = function() {
-  updateHUD(); renderMap();
-  // 先顯示地圖畫面再疊上教學
-  if (typeof dialogues !== "undefined" &&
-      dialogues.intro && dialogues.intro.length > 0) {
-    showDialogue(dialogues.intro, function() {
-      showScreen("screen-map");
-      tryShowMazeTutorial();
-    });
-  } else {
-    showScreen("screen-map");
-    tryShowMazeTutorial();
+  if (!DEV_MODE) {
+    var btnCode  = document.getElementById("btn-open-code");
+    var btnDev   = document.getElementById("btn-open-dev");
+    var btnCheat = document.getElementById("btn-open-cheatsheet");
+    if (btnCode)  btnCode.style.display  = "none";
+    if (btnDev)   btnDev.style.display   = "none";
+    if (btnCheat) btnCheat.style.display = "none";
   }
+  updateHUD(); renderMap(); renderBagSidebar();
+  showScreen("screen-map");
+  tryShowMazeTutorial();
 };
 
 
@@ -4299,106 +3823,3 @@ function enemyTurn(player, enemy) {
 }
 
 
-function startMiniGame() {
-  mgScore    = 0;
-  mgTimeLeft = MG_TIME;
-  mgRunning  = true;
-
-  updateMiniGameHUD()
-  var area = document.getElementById("mg-area");
-  if (area) {
-    area.onmousemove  = onMgMouseMove;
-    area.onclick      = onMgClick;
-    area.onmouseleave = function() {
-      var c = document.getElementById("mg-crosshair");
-      if (c) c.style.display = "none";
-    };
-  }
-
-  spawnMgEnemy();
-
-  mgTimer = setInterval(function() {
-    if (!mgRunning) { clearInterval(mgTimer); return; }
-    mgTimeLeft--;
-    updateMiniGameHUD();
-    if (mgTimeLeft <= 0) { onMiniGameEnd(false); }
-  }, 1000);
-}
-
-function stopMiniGame() {
-  mgRunning = false;
-  clearInterval(mgTimer);
-  clearTimeout(mgEnemyTimer);
-  if (mgCurrentEnemy && mgCurrentEnemy.parentNode)
-    mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
-  mgCurrentEnemy = null;
-  var c = document.getElementById("mg-crosshair");
-  if (c) c.style.display = "none";
-  var area = document.getElementById("mg-area");
-  if (area) area.onmousemove = area.onclick = area.onmouseleave = null;
-}
-
-function spawnMgEnemy() {
-  var area = document.getElementById("mg-area");
-  if (!area) return;
-  var maxX = area.clientWidth  - 50;
-  var maxY = area.clientHeight - 50;
-  var en = document.createElement("img");
-  en.src       = "assets/picture/小遊戲靶.png";
-  en.className  = "mg-enemy";
-  en.style.left = Math.floor(Math.random() * maxX) + "px";
-  en.style.top  = Math.floor(Math.random() * maxY) + "px";
-  area.appendChild(en);
-  mgCurrentEnemy = en;
-
-  mgEnemyTimer = setTimeout(function() {
-    if (mgCurrentEnemy && mgCurrentEnemy.parentNode) {
-      mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
-      mgCurrentEnemy = null;
-    }
-    if (mgRunning) spawnMgEnemy();
-  }, MG_ENEMY_DURATION);
-}
-
-function onMgMouseMove(e) {
-  var crosshair = document.getElementById("mg-crosshair");
-  if (!crosshair) return;
-  crosshair.style.display = "block";
-  var area = document.getElementById("mg-area");
-  var rect = area.getBoundingClientRect();
-  crosshair.style.left = (e.clientX - rect.left - crosshair.offsetWidth  / 2) + "px";
-  crosshair.style.top  = (e.clientY - rect.top  - crosshair.offsetHeight / 2) + "px";
-}
-
-function onMgClick(e) {
-  if (!mgRunning || !mgCurrentEnemy) return;
-  var area = document.getElementById("mg-area");
-  var rect = area.getBoundingClientRect();
-  var cx   = e.clientX - rect.left;
-  var cy   = e.clientY - rect.top;
-
-  var ex = parseInt(mgCurrentEnemy.style.left, 10);
-  var ey = parseInt(mgCurrentEnemy.style.top,  10);
-  var ew = mgCurrentEnemy.offsetWidth  || 50;
-  var eh = mgCurrentEnemy.offsetHeight || 50;
-
-  if (cx >= ex && cx <= ex + ew && cy >= ey && cy <= ey + eh) {
-    mgScore++;
-    updateMiniGameHUD();
-    playSound("shot");
-    if (mgCurrentEnemy.parentNode) mgCurrentEnemy.parentNode.removeChild(mgCurrentEnemy);
-    mgCurrentEnemy = null;
-    clearTimeout(mgEnemyTimer);
-    spawnMgEnemy();
-    if (mgScore >= MG_TARGET) onMiniGameEnd(true);
-  }
-}
-
-function updateMiniGameHUD() {
-  var scoreEl  = document.getElementById("mg-score");
-  var targetEl = document.getElementById("mg-target");
-  var timeEl   = document.getElementById("mg-time");
-  if (scoreEl)  scoreEl.textContent  = mgScore;
-  if (targetEl) targetEl.textContent = MG_TARGET;
-  if (timeEl)   timeEl.textContent   = mgTimeLeft;
-}

@@ -14,7 +14,13 @@
   <div id="screen-map">
     <div id="map-layout">
 
-      <!-- ── 左側：地圖 ── -->
+      <!-- ── 左側欄：背包 ── -->
+      <div id="map-bag">
+        <div class="side-section-title">🎒 背包</div>
+        <div id="bag-list"></div>
+      </div>
+
+      <!-- ── 中間：地圖 ── -->
       <div id="map-left">
         <button class="settings-btn" onclick="openSettings()" title="設定">
           <img src="assets/picture/設定.png" alt="⚙️"
@@ -29,28 +35,32 @@
           <!-- 提示訊息：浮蓋在地圖上方 -->
           <div id="map-message"></div>
         </div>
-        <div id="controls-hint">WASD / ↑↓←→ 移動　M 地圖　B 背包　C 關閉　空格鍵 確認　ESC 設定</div>
+        <div id="controls-hint">WASD / ↑↓←→ 移動　M 地圖　ESC 設定　C 關閉</div>
       </div>
 
       <!-- ── 右側：資訊面板 ── -->
       <div id="map-right">
 
-        <!-- 上方：資源 + 按鈕 + 隊伍 -->
+        <!-- 上方：角色數值 + 按鈕 -->
         <div id="side-stats">
-          <div class="side-section-title">資源</div>
+          <div class="side-section-title">角色</div>
           <div id="side-stats-top">
             <div id="side-resources">
               <div class="side-resource-row">
+                <span class="side-resource-label">❤️ HP</span>
+                <span id="hud-hp-inline">0 / 0</span>
+              </div>
+              <div class="side-resource-row">
+                <span class="side-resource-label">⚔️ ATK</span>
+                <span id="hud-atk-inline">0</span>
+              </div>
+              <div class="side-resource-row">
+                <span class="side-resource-label">🛡️ DEF</span>
+                <span id="hud-def-inline">0</span>
+              </div>
+              <div class="side-resource-row">
                 <span class="side-resource-label">💰 金幣</span>
                 <span id="hud-money">0</span>
-              </div>
-              <div class="side-resource-row">
-                <span class="side-resource-label">🔑 鑰匙</span>
-                <span id="hud-keys">0</span>
-              </div>
-              <div class="side-resource-row">
-                <span class="side-resource-label">🎒 背包</span>
-                <span id="hud-items">0</span>
               </div>
               <div class="side-resource-row">
                 <button class="btn btn-side-action btn-side-shop" id="btn-open-shop"
@@ -58,9 +68,9 @@
               </div>
             </div>
             <div id="side-actions">
-              <button class="btn btn-side-action btn-side-code" id="btn-open-code" onclick="window.open('https://hackmd.io/@Zaiku23/ntnucsiecamp','_blank')">💻 程式碼</button>
-              <button class="btn btn-side-action" id="btn-open-inventory" onclick="openInventory()">🎒 背包</button>
-              <button class="btn btn-side-action btn-party-open" onclick="openPartyOverlay()">👥 隊伍</button>
+              <button class="btn btn-side-action btn-side-code" id="btn-open-code" onclick="window.open('https://github.com/CSIE-Camp/2026-maze-rpg-template','_blank')">💻 程式碼</button>
+              <button class="btn btn-side-action btn-side-dev" id="btn-open-dev" onclick="openDevPanel()">🛠 開發模式</button>
+              <button class="btn btn-side-action btn-side-code" id="btn-open-cheatsheet" onclick="window.open('https://hackmd.io/@minstrike520/S1zoPTPQzx','_blank')">📖 程式小抄</button>
             </div>
           </div>
         </div>
@@ -74,18 +84,6 @@
           <canvas id="minimap-canvas"></canvas>
         </div>
 
-      </div>
-    </div>
-
-    <!-- 隊伍 overlay -->
-    <div id="party-overlay" style="display:none">
-      <div id="party-overlay-bg" onclick="closePartyOverlay()"></div>
-      <div id="party-overlay-content">
-        <div id="party-overlay-title">👥 隊伍</div>
-        <div id="side-party-list">
-          <!-- 由 JS 動態產生 -->
-        </div>
-        <button class="btn btn-minimap-close" onclick="closePartyOverlay()">✕ 關閉</button>
       </div>
     </div>
 
@@ -107,111 +105,12 @@
           <div class="legend-item"><span class="legend-dot" style="background:#22e060"></span>玩家</div>
           <div class="legend-item"><span class="legend-dot" style="background:#2d4a7a"></span>通道</div>
           <div class="legend-item"><span class="legend-dot" style="background:#080d1a;border:1px solid #333"></span>牆壁</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#c89010"></span>寶箱</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#b83030"></span>敵人</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#604898"></span>門</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#1878b0"></span>射擊遊戲</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#287840"></span>商店</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#c05010"></span>傳送門</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#880010"></span>最終魔王</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#5a3890"></span>事件地塊（顏色依定義）</div>
           <div class="legend-item"><span class="legend-dot" style="background:#050810;border:1px solid #333"></span>未探索</div>
         </div>
       </div>
     </div>
 
-    <!-- 背包 overlay -->
-    <div id="inventory-overlay" style="display:none">
-      <div id="inventory-overlay-bg" onclick="closeInventory()"></div>
-      <div id="inventory-overlay-content">
-        <div id="inventory-overlay-title">🎒 背包</div>
-        <div id="inventory-overlay-list"></div>
-        <button class="btn btn-minimap-close" onclick="closeInventory()">✕ 關閉</button>
-      </div>
-    </div>
-
-    <!-- 保留供 updateHUD() 使用的隱藏元素 -->
-    <span id="hud-hp"  style="display:none"></span>
-    <span id="hud-atk" style="display:none"></span>
-    <span id="hud-def" style="display:none"></span>
-  </div>
-
-
-  <!-- ════════════════════════════════════════════════════
-       畫面 2：戰鬥畫面
-       ════════════════════════════════════════════════════ -->
-  <div id="screen-combat" style="display:none">
-
-    <div id="combat-field">
-      <button class="settings-btn" onclick="openSettings()" title="設定">
-      <img src="assets/picture/設定.png" alt="⚙️"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-      <span style="display:none;font-size:20px">⚙️</span>
-      </button>
-      <!-- 敵方名稱卡片（純名稱，HP 由每個 .enemy-unit 獨立顯示） -->
-      <div class="battle-info-card" id="combat-enemy-card">
-        <div class="battle-card-name" id="enemy-name">敵人名稱</div>
-      </div>
-
-      <!-- 動態敵人顯示區：由右向左排開，JS 以 renderEnemyUnits() 填入 -->
-      <div id="combat-enemies-area"></div>
-
-      <!-- 己方隊伍區（玩家 + 同伴，由 JS 以 renderPartyUnits() 填入） -->
-      <div id="combat-party-area"></div>
-
-    </div>
-
-    <div id="press-turn-display" style="display:none">
-      <div id="pt-player-tokens">玩家 ◆ ◆ ◆ ◆</div>
-      <div id="combat-hint"></div>
-      <div id="pt-enemy-tokens">敵人 ◆ ◆ ◆ ◆</div>
-    </div>
-
-    <div id="combat-panel">
-      <div id="combat-log"></div>
-
-      <!-- 己方全員 HP + 查看按鈕 -->
-      <div id="party-hp-row">
-        <div id="party-hp-area"></div>
-        <button class="btn btn-inspect" id="btn-inspect" onclick="showEnemyInfo()">📋 查看</button>
-      </div>
-
-      <!-- 統一行動區：只顯示當前行動角色的選擇 -->
-      <div id="party-action-area">
-        <!-- 查看敵人面板：absolute 覆蓋在行動區上方 -->
-        <div id="inspect-panel" style="display:none">
-          <div id="inspect-title"></div>
-          <div id="inspect-content"></div>
-          <button class="btn btn-defend" style="flex:none;padding:6px 14px" onclick="hideEnemyInfo()">關閉</button>
-        </div>
-
-        <!-- 玩家行動區：輪到玩家才顯示 -->
-        <div id="player-action-zone" style="display:none">
-          <div id="combat-buttons" class="no-scrollbar">
-            <button class="btn btn-attack"  id="btn-attack"  onclick="onAttack()">⚔️ 攻擊</button>
-            <button class="btn btn-defend"  id="btn-defend"  onclick="onDefend()">🛡️ 防禦</button>
-            <button class="btn btn-flee"    id="btn-flee"    onclick="onFlee()">💨 逃跑</button>
-            <button class="btn btn-pass"    id="btn-pass"    onclick="onPass()" style="display:none">⏸️ 待機</button>
-          </div>
-          <!-- 目標選擇面板 -->
-          <div id="target-select-panel" style="display:none">
-            <div id="target-select-title">選擇目標</div>
-            <div id="target-select-buttons"></div>
-            <button class="btn btn-flee" style="flex:none;padding:6px 14px" onclick="cancelTargetSelect()">✕ 取消</button>
-          </div>
-          <!-- 技能行動（由 renderSkillButtons 動態填入） -->
-          <div id="combat-skills" class="no-scrollbar"></div>
-          <!-- 背包消耗品（由 renderInventoryButtons 動態填入） -->
-          <div id="combat-items" class="no-scrollbar" style="display:none"></div>
-        </div>
-
-        <!-- 同伴行動區：輪到該同伴才顯示 -->
-        <div id="ally-action-zone" style="display:none">
-          <div id="ally-action-title">同伴行動</div>
-          <div id="ally-action-buttons"></div>
-        </div>
-
-      </div>
-    </div>
 
   </div>
 
@@ -238,36 +137,12 @@
         <div id="shop-money-display">
           💰 金幣：<span id="shop-player-money">0</span> 枚
         </div>
-        <div class="shop-sidebar-title">隊伍狀態</div>
-        <div id="shop-party-list">
-          <!-- 由 engine.js 動態產生 -->
-        </div>
         <div class="shop-sidebar-title">背包道具</div>
         <div id="shop-inventory-list">
           <!-- 由 engine.js 動態產生 -->
         </div>
       </div>
 
-    </div>
-
-  </div>
-
-
-  <!-- ════════════════════════════════════════════════════
-       畫面 4：射擊小遊戲畫面
-       ════════════════════════════════════════════════════ -->
-  <div id="screen-minigame" style="display:none">
-
-    <div id="minigame-box">
-      <h2>🎯 射擊小遊戲</h2>
-      <div id="mg-hud">
-        <span>擊中：<strong id="mg-score">0</strong> / <strong id="mg-target">5</strong></span>
-        <span>⏱️ 剩餘：<strong id="mg-time">30</strong> 秒</span>
-      </div>
-      <div id="mg-area">
-        <div id="mg-crosshair">＋</div>
-      </div>
-      <p id="mg-hint">移動滑鼠瞄準敵人，按下左鍵射擊！</p>
     </div>
 
   </div>
@@ -336,12 +211,258 @@
 
 
   <!-- ════════════════════════════════════════════════════
+       開發模式面板（Live Preview）
+       ════════════════════════════════════════════════════ -->
+  <div id="dev-panel-overlay" style="display:none">
+    <div id="dev-panel-bg" onclick="closeDevPanel()"></div>
+    <div id="dev-panel-content">
+
+      <!-- 分頁列 -->
+      <div id="dev-tab-bar">
+        <button id="dev-tab-btn-events" class="dev-tab-btn dev-tab-btn--active" onclick="switchDevTab('events')">🛠 事件程式碼</button>
+        <button id="dev-tab-btn-tiles" class="dev-tab-btn" onclick="switchDevTab('tiles')">🧱 事件地塊</button>
+        <button id="dev-tab-btn-map" class="dev-tab-btn" onclick="switchDevTab('map')">🗺️ 地圖編輯</button>
+        <button id="dev-tab-btn-items" class="dev-tab-btn" onclick="switchDevTab('items')">🧪 物品生成器</button>
+        <button id="dev-tab-btn-endings" class="dev-tab-btn" onclick="switchDevTab('endings')">🏁 結局編輯</button>
+        <button class="btn btn-minimap-close" id="dev-panel-close-btn" onclick="closeDevPanel()">✕ 關閉</button>
+      </div>
+
+      <!-- ── 分頁一：事件程式碼 ── -->
+      <div id="dev-tab-events" class="dev-tab-page">
+
+        <!-- 左：程式碼編輯器 -->
+        <div id="dev-panel-left">
+          <div class="dev-panel-title">🛠 事件程式碼</div>
+          <div class="dev-panel-hint">程式碼會在<b>關閉面板時自動套用</b>；和 events.js 檔案同名的函式會覆蓋檔案版本（關閉時會提醒）。</div>
+          <textarea id="dev-code-editor" spellcheck="false"></textarea>
+          <div id="dev-editor-toolbar">
+            <button class="btn btn-dev-revert" id="btn-dev-revert" onclick="revertLastDevCode()" style="display:none">↩️ 返回上一次套用</button>
+            <button class="btn btn-dev-clear" id="btn-dev-clear" onclick="clearDevState()">🗑️ 清除暫存</button>
+            <span id="dev-status"></span>
+          </div>
+        </div>
+
+        <!-- 右：匯出 -->
+        <div id="dev-panel-right">
+          <div class="dev-panel-title">📤 匯出</div>
+          <div class="dev-panel-hint">
+            寫好的事件函式可以在「🧱 事件地塊」分頁綁定到自訂地塊，
+            再到「🗺️ 地圖編輯」分頁畫上地圖。
+          </div>
+
+          <div class="dev-panel-subtitle">
+            匯出 events.js
+            <button class="btn btn-dev-copy" onclick="copyExportCode()">📋 複製</button>
+          </div>
+          <div class="dev-panel-hint">下面已自動把 <code>events.js</code> 原有內容與面板內容整合（同名函式以面板版本為準）。整段貼到 <code>events.js</code> 取代全部內容，清除瀏覽器快取後程式依然保留。</div>
+          <textarea id="dev-export-code" readonly spellcheck="false"></textarea>
+        </div>
+
+      </div>
+
+      <!-- ── 分頁：事件地塊 ── -->
+      <div id="dev-tab-tiles" class="dev-tab-page" style="display:none">
+
+        <!-- 左：地塊編輯表單 -->
+        <div id="dev-tiles-left">
+          <div class="dev-panel-title">🧱 事件地塊</div>
+          <div class="dev-panel-hint">
+            自訂你的事件地塊：編號 <b>10 ~ 255</b>（自己指定數值，避免和預設或別人的地塊撞號）。
+            事件函式先在「事件程式碼」分頁寫好；新增後到「🗺️ 地圖編輯」用筆刷畫上地圖。
+          </div>
+
+          <div class="dev-item-form">
+            <label>地塊編號（10~255） <input id="dev-tile-code" type="number" min="10" max="255" value="100"></label>
+            <label>地塊名稱 <input id="dev-tile-name" type="text" value="我的地塊"></label>
+            <label>顏色 <input id="dev-tile-color" type="color" value="#5a3890"></label>
+            <label>圖示
+              <select id="dev-tile-icon" onchange="updateTileIconPreview()">
+                <option value="">（無）</option>
+                <option value="assets/picture/傳送門.png">傳送門</option>
+                <option value="assets/picture/寶箱.png">寶箱</option>
+                <option value="assets/picture/商店.png">商店</option>
+                <option value="assets/picture/門鎖.png">門鎖</option>
+                <option value="assets/picture/遠古圖騰.png">遠古圖騰</option>
+                <option value="assets/picture/玩家.png">玩家</option>
+                <option value="assets/picture/哥布林.png">哥布林</option>
+                <option value="assets/picture/史萊姆.png">史萊姆</option>
+                <option value="assets/picture/弓箭手.png">弓箭手</option>
+                <option value="assets/picture/惡魔蝙蝠.png">惡魔蝙蝠</option>
+                <option value="assets/picture/死靈法師.png">死靈法師</option>
+                <option value="assets/picture/法師.png">法師</option>
+                <option value="assets/picture/泥巴怪.png">泥巴怪</option>
+                <option value="assets/picture/狼人.png">狼人</option>
+                <option value="assets/picture/眼球怪.png">眼球怪</option>
+                <option value="assets/picture/聖騎士.png">聖騎士</option>
+                <option value="assets/picture/冥界雙衛.png">冥界雙衛</option>
+                <option value="assets/picture/骷髏騎士.png">骷髏騎士</option>
+                <option value="assets/picture/魔王小兵.png">魔王小兵</option>
+                <option value="assets/picture/黑暗巨龍.png">黑暗巨龍</option>
+                <option value="assets/picture/小遊戲靶.png">小遊戲靶</option>
+              </select>
+              <img id="dev-tile-icon-preview" src="" alt="" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;display:none;margin-left:4px;">
+            </label>
+            <label>事件函式
+              <select id="dev-tile-fn"></select>
+            </label>
+          </div>
+
+          <div id="dev-tiles-toolbar">
+            <button class="btn btn-dev-apply" onclick="addOrUpdateTileDef()">➕ 新增 / 更新地塊</button>
+            <span id="dev-tiles-status"></span>
+          </div>
+        </div>
+
+        <!-- 右：已定義地塊 + 匯出 -->
+        <div id="dev-tiles-right">
+          <div class="dev-panel-subtitle">已定義的地塊</div>
+          <div id="dev-tiles-list"></div>
+
+          <div class="dev-panel-subtitle">
+            匯出 tile.js
+            <button class="btn btn-dev-copy" onclick="copyTileExportCode()">📋 複製</button>
+          </div>
+          <div class="dev-panel-hint">把下面整段貼到 <code>tile.js</code>（取代 <code>var tileDefs</code>），清除瀏覽器快取後地塊定義依然保留。</div>
+          <textarea id="dev-tiles-export-code" readonly spellcheck="false"></textarea>
+        </div>
+
+      </div>
+
+      <!-- ── 分頁：物品生成器 ── -->
+      <div id="dev-tab-items" class="dev-tab-page" style="display:none">
+
+        <!-- 左：生成器 -->
+        <div id="dev-items-left">
+          <div class="dev-panel-title">🧪 物品生成器</div>
+          <div class="dev-panel-hint">
+            物品格式：<code>{ name: "藥水", effect: onPotionHeal, desc: "可以回復生命的藥水" }</code><br>
+            <b>effect 是一個「函式」</b>，物品被使用時會被呼叫。
+            先在「事件程式碼」分頁寫好效果函式，或按下面的快速範本自動生成。
+          </div>
+
+          <div class="dev-item-form">
+            <label>物品名稱 <input id="dev-item-name" type="text" value="藥水" oninput="_renderItemExport()"></label>
+            <label>物品說明 <input id="dev-item-desc" type="text" value="可以回復生命的藥水" oninput="_renderItemExport()"></label>
+            <label>效果函式
+              <select id="dev-item-fn" onchange="_renderItemExport()"></select>
+            </label>
+          </div>
+
+          <div class="dev-panel-subtitle">快速範本</div>
+          <div id="dev-item-quick-add">
+            <button class="btn dev-quick-btn" onclick="quickAddItemTemplate('heal')">回血藥水</button>
+            <button class="btn dev-quick-btn" onclick="quickAddItemTemplate('atk')">力量藥水</button>
+            <button class="btn dev-quick-btn" onclick="quickAddItemTemplate('def')">防禦藥水</button>
+            <button class="btn dev-quick-btn" onclick="quickAddItemTemplate('scroll')">傳送卷軸</button>
+          </div>
+          <div class="dev-panel-hint">自動在「事件程式碼」分頁加入效果函式，並填好上面的欄位</div>
+
+          <div id="dev-items-toolbar">
+            <button class="btn btn-dev-apply" onclick="devItemGiveToBag()">➕ 放進背包試試</button>
+            <span id="dev-items-status"></span>
+          </div>
+
+          <div class="dev-panel-subtitle">
+            產生的程式碼（貼進你的事件函式裡，例如寶箱事件）
+            <button class="btn btn-dev-copy" onclick="copyItemExportCode()">📋 複製</button>
+          </div>
+          <textarea id="dev-item-export-code" readonly spellcheck="false"></textarea>
+        </div>
+
+        <!-- 右：目前背包 -->
+        <div id="dev-items-right">
+          <div class="dev-panel-subtitle">🎒 目前背包</div>
+          <div id="dev-items-bag-list"></div>
+          <div class="dev-panel-hint">
+            bag API 的完整用法請看「📖 程式小抄」按鈕連結，或 <code>docs/reference.md</code>。
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── 分頁三：結局編輯 ── -->
+      <div id="dev-tab-endings" class="dev-tab-page" style="display:none">
+        <div id="dev-endings-left">
+          <div class="dev-panel-title">🏁 結局編輯</div>
+          <div class="dev-panel-hint">設定不同結局的觸發條件與顯示內容。條件為 JS 表達式，每次移動後檢查，第一個符合的結局會觸發。</div>
+          <div id="dev-endings-list"></div>
+          <button class="btn btn-dev-apply" onclick="addGameEnding()">＋ 新增結局</button>
+        </div>
+        <div id="dev-endings-right">
+          <div class="dev-panel-subtitle">
+            匯出結局程式碼
+            <button class="btn btn-dev-copy" onclick="copyEndingsExportCode()">📋 複製</button>
+          </div>
+          <div class="dev-panel-hint">
+            把下面整段貼到 <code>endings.js</code>（取代原本的 <code>var gameEndings</code>），
+            清除瀏覽器快取後結局設定依然保留。
+          </div>
+          <textarea id="dev-endings-export-code" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- ── 分頁二：地圖編輯 ── -->
+      <div id="dev-tab-map" class="dev-tab-page" style="display:none">
+
+        <!-- 左：地圖格 -->
+        <div id="dev-map-left">
+          <div class="dev-panel-title">🗺️ 地圖編輯</div>
+          <div id="dev-map-grid"></div>
+          <div class="dev-panel-hint">點擊或按住拖曳塗色。自訂事件地塊請先到「🧱 事件地塊」分頁定義，就會出現在右側筆刷。</div>
+        </div>
+
+        <!-- 右：工具 + 匯出 -->
+        <div id="dev-map-right">
+          <div class="dev-panel-subtitle">筆刷</div>
+          <div id="dev-map-palette"></div>
+
+          <div id="dev-map-toolbar">
+            <button class="btn btn-dev-apply" onclick="applyDevMap()">▶ 套用地圖</button>
+            <button class="btn btn-dev-clear" onclick="resetDevMap()">↩️ 還原原始地圖</button>
+          </div>
+          <span id="dev-map-status"></span>
+
+          <div class="dev-panel-subtitle">
+            匯出地圖程式碼
+            <button class="btn btn-dev-copy" onclick="copyMapExportCode()">📋 複製</button>
+          </div>
+          <textarea id="dev-map-export-code" readonly spellcheck="false"></textarea>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 自訂事件面板（學員用 game.panel = "..." 顯示） -->
+  <div id="event-panel" style="display:none">
+    <div id="event-panel-card">
+      <button id="event-panel-close" onclick="game.panel = ''">✕</button>
+      <div id="event-panel-content"></div>
+    </div>
+  </div>
+
+  <!-- 自訂結局全屏面板 -->
+  <div id="ending-panel" style="display:none">
+    <div id="ending-panel-box">
+      <div id="ending-panel-content"></div>
+      <button class="btn btn-restart" onclick="restartGame()">🔄 再來一次</button>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════════
        載入 JS
        ════════════════════════════════════════════════════ -->
   <script src="map.js"></script>
+  <script src="tile.js"></script>
   <script src="new_data.js"></script>
   <script src="new_engine.js"></script>
   <script src="audio.js"></script>
+  <script src="game_api.js"></script>
+  <script src="dev_panel.js"></script>
+  <script src="events.js"></script>
+  <script src="endings.js"></script>
 
   <script>
     function openShopFromHUD() {
@@ -397,13 +518,6 @@
         <span class="settings-toggle-label">🗺️ 迷宮教學</span>
         <button id="toggle-maze-tutorial" class="settings-toggle-btn"
                 onclick="toggleMazeTutorialSetting()">開</button>
-      </div>
-
-      <!-- 戰鬥教學開關 -->
-      <div class="settings-block settings-toggle-block">
-        <span class="settings-toggle-label">⚔️ 戰鬥教學</span>
-        <button id="toggle-combat-tutorial" class="settings-toggle-btn"
-                onclick="toggleCombatTutorialSetting()">開</button>
       </div>
 
       <button class="btn btn-minimap-close" onclick="closeSettings()"

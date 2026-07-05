@@ -3,41 +3,24 @@
 // ============================================================
 
 
+// ── DEV_MODE：設為 false 隱藏「程式碼」「開發模式」「程式小抄」按鈕 ──
+var DEV_MODE = true;
+
+
 // ── 攝影機 / 顯示常數 ─────────────────────────────────────────
 var CAM_ZOOM  = 1.5;   // >1 = 拉近；改這一個數字調縮放
 var TILE_SIZE = 60;    // 每格原始像素（不改）
 var VIEW_PX   = 540;   // viewport 像素（不改）
 
 
-// ── 等級系統 ──────────────────────────────────────────────────
-var MAX_LEVEL    = 5;                       // 等級上限（調小可快速測試）
-var LEVEL_QUOTAS = [30, 60, 110, 180];      // 每級升級所需 EXP（索引 0 = Lv1→2）
-var LEVELUP_BONUS = { hp: 15, def: 1, spd: 2 }; // 每次升級加成
-
-// ── 升級特效設定（光圈動畫）────────────────────────────────────
-var LEVELUP_RING_COUNT    = 5;    // 光圈數量
-var LEVELUP_RING_DURATION = 900;  // 單圈動畫時長（ms）
-var LEVELUP_RING_STAGGER  = 110;  // 每圈啟動間隔（ms）
-var LEVELUP_RING_SIZE_MIN = 34;   // 最小光圈直徑（px）
-var LEVELUP_RING_SIZE_STEP = 20;  // 每圈直徑增量（px）
-var LEVELUP_RING_RISE     = 65;   // 光圈上浮距離（px）
-
-// ── 戰鬥模式 & 全域數值上限 ───────────────────────────────────
-var COMBAT_MODE     = "press_turn"; //or "tradition"
-var ENEMY_BASE_TOKENS = 1;         // 敵方基礎圖示數（單體敵人）
-var PLAYER_DMG_CAP  = 20;          // 連斬單目標傷害上限
-var STAT_CAP        = { atk: 40, def: 25, hp: 160 };
-
-// ── 命中率系統 ────────────────────────────────────────────────
-var SPD_HIT_SCALE   = 1.5; // 每 1 點速度差改變命中率（越小 = 速度影響越大）
-var BASE_ATTACK_HIT = 75;  // 普通攻擊基礎命中率 (%)（調低 = 閃避率提高）
-var BASE_CRIT_RATE  = 0.05; // 爆擊率下限 5%（任何角色都至少有此爆擊率）
-var SKILL_CRIT_BONUS = 0.15; // 技能爆擊率額外加成（疊加在速度爆擊率上）
-var SPD_STAGE_BONUS  = 5;   // 每段速度提升/下降值（目前未使用，保留供擴充）
-var HIT_STAGE_BONUS  = 10;  // 每段命中率提升/下降值（%）
-var AGI_SPD_BONUS    = 5;   // 每段 Agi 等效速度值（用於命中率閃避計算）
-var ATK_STAGE_BONUS  = 5;   // 每段攻擊提升/下降值
-var DEF_STAGE_BONUS  = 3;   // 每段防禦提升/下降值
+// ── 地塊代碼（預設值） ────────────────────────────────────────
+//   0 = 空地、1 = 牆壁、2 = 出生點（地圖上放一格，玩家從這裡開始）
+//   10 ~ 255 = 自訂事件地塊，定義寫在 tile.js（見開發模式「事件地塊」分頁）
+var MAP_TILE = {
+  EMPTY: 0,
+  WALL:  1,
+  START: 2
+};
 
 
 // ── 玩家初始數值 ──────────────────────────────────────────────
@@ -48,148 +31,26 @@ var playerStats = {
   atk:    10,
   def:    5,
   spd:    10,
-  money:  10000,
-  keys:   0,
-  skills: ["power_strike"],
-  level: 1, exp: 0
+  money:  10000
 };
-
-
-// ── 敵人列表（tier: "A" / "B" / "C" 對應迷宮區域） ──────────
-var enemies = [
-  // A 區（Tier 1）
-  { name: "哥布林",   tier: "A", hp: 42,  maxHp: 42,  atk:  9, def: 3, spd:  5, reward: { exp: 11, money: 22 }, img: "assets/picture/哥布林.png" },
-  { name: "狼人",     tier: "A", hp: 60,  maxHp: 60,  atk: 10, def: 4, spd:  8, reward: { exp: 14, money: 27 }, img: "assets/picture/狼人.png" },
-  { name: "泥巴怪",   tier: "A", hp: 56,  maxHp: 56,  atk: 13, def: 5, spd:  4, reward: { exp: 14, money: 28 }, img: "assets/picture/泥巴怪.png" },
-  { name: "惡魔蝙蝠", tier: "A", hp: 38,  maxHp: 38,  atk: 12, def: 2, spd: 12, reward: { exp: 13, money: 25 }, img: "assets/picture/惡魔蝙蝠.png" },
-  // B 區（Tier 2）
-  { name: "骷髏騎士",  tier: "B", hp: 250, maxHp: 250, atk: 15, def: 10, spd:  7, reward: { exp: 34, money: 67 }, img: "assets/picture/骷髏騎士.png" },
-  { name: "Error404★", tier: "B", hp: 10,  maxHp: 10,  atk: 27, def:  0, spd: 15, reward: { exp: 45, money: 90 }, isMiniBarrier: true, noOneShot: true, img: "assets/picture/Error404.png" },
-  { name: "史萊姆",    tier: "B", hp: 190, maxHp: 190, atk: 20, def:  8, spd:  5, reward: { exp: 37, money: 73 }, img: "assets/picture/史萊姆.png" },
-  { name: "遠古圖騰",      tier: "B", hp: 120, maxHp: 120, atk: 17, def:  5, spd:  3, reward: { exp: 39, money: 77 }, isPaired: true, img: "assets/picture/遠古圖騰.png" },
-  // C 區（Tier 3）
-  { name: "死靈法師",  tier: "C", hp: 420, maxHp: 420, atk: 34, def: 15, spd: 10, reward: { exp: 50, money: 80 }, img: "assets/picture/死靈法師.png" },
-  { name: "眼球怪",    tier: "C", hp: 510, maxHp: 510, atk: 28, def: 18, spd: 13, reward: { exp: 55, money: 94 }, img: "assets/picture/眼球怪.png" },
-  { name: "冥界雙衛",  tier: "C", hp: 200, maxHp: 200, atk: 34, def: 12, spd:  9, reward: { exp: 52, money: 85 }, isPaired: true, img: "assets/picture/冥界雙衛.png" }
-];
-
-// ── 最終 Boss ─────────────────────────────────────────────────
-// HP 低於 60% 時召喚 1~3 個分身（各 HP 20）
-var finalBoss = {
-  name: "黑暗魔王", hp: 1250, maxHp: 1250, atk: 53, def: 20, spd: 18,
-  reward: { exp: 200, money: 150 }, img: "assets/picture/黑暗巨龍.png"
-};
-
-
-// ── 寶箱獎勵 ──────────────────────────────────────────────────
-var chestRewards = [
-  { money: 25,  message: "你找到了 25 枚金幣！" },
-  { atk:   3,   message: "你找到了力量秘藥，攻擊力永久提升 3！" },
-  { def:   2,   message: "你找到了盾牌碎片，防禦力永久提升 2！" },
-  { money: 35,  message: "大寶箱！你找到了 35 枚金幣！" },
-  { reviveAlly: true, message: "你找到了友軍復活藥水！" }
-];
-
-
-// ── 技能定義 ──────────────────────────────────────────────────
-var skillDefs = [
-  { id: "power_strike", name: "強力打擊", icon: "💥",
-    desc: "造成 2× 傷害（冷卻 2 回合）",               type: "innate", cooldown: 2, baseHit: 80 },
-  { id: "heal_magic",   name: "治療術",   icon: "💚",
-    desc: "戰鬥中恢復 25 HP（無冷卻）",                type: "shop",   price: 40, cooldown: 0 },
-  { id: "shield_bash",  name: "盾擊",     icon: "🛡️",
-    desc: "防禦並造成 0.5× 傷害（冷卻 2 回合）",       type: "shop",   price: 35, cooldown: 2, baseHit: 90 },
-  { id: "berserk",      name: "狂戰士",   icon: "😤",
-    desc: "造成 3× 傷害，自損 15 HP（冷卻 3 回合）",
-    type: "craft", recipe: ["power_strike", "heal_magic"], cooldown: 3, baseHit: 75 },
-  { id: "chain_slash",  name: "連斬",     icon: "🌀",
-    desc: "同時攻擊所有分身，各造成 ATK 傷害（冷卻 3 回合）",
-    type: "shop", price: 60, cooldown: 3, baseHit: 80 },
-  { id: "skukaja",     name: "斯庫卡加", icon: "⬆️",
-    desc: "增加我方全體命中率 10%（最多 3 段 / +30%，持續 3 回合，冷卻 1 回合）",
-    type: "shop", price: 50, cooldown: 1 },
-  { id: "sukunda",     name: "斯坤達",   icon: "🐌",
-    desc: "降低敵方全體命中率 10%（最多 3 段 / -30%，持續 3 回合，冷卻 1 回合）",
-    type: "shop", price: 45, cooldown: 1 },
-  { id: "tarukaja",    name: "塔爾卡加", icon: "🗡️",
-    desc: "增加我方全體攻擊一階段（最多 3 階段，持續 3 回合，冷卻 1 回合）",
-    type: "shop", price: 50, cooldown: 1 },
-  { id: "tarunda",     name: "塔倫達",   icon: "💢",
-    desc: "降低敵方全體攻擊一階段（最低 -3 階段，持續 3 回合，冷卻 1 回合）",
-    type: "shop", price: 45, cooldown: 1 },
-  { id: "rakukaja",    name: "拉庫卡加", icon: "🔰",
-    desc: "增加我方全體防禦一階段（最多 3 階段，持續 3 回合，冷卻 1 回合）",
-    type: "shop", price: 50, cooldown: 1 },
-  { id: "rakunda",     name: "拉坤達",   icon: "🌊",
-    desc: "降低敵方全體防禦一階段（最低 -3 階段，持續 3 回合，冷卻 1 回合）",
-    type: "shop", price: 45, cooldown: 1 },
-];
 
 
 // ── 商店道具 ──────────────────────────────────────────────────
-// isConsumable:false = 立即永久生效
-// isConsumable:true  = 加入背包，戰鬥中手動使用
+// 物品格式：{ name, price, effect: 函式, desc, isConsumable }
+//   effect       → 一個「函式」，效果發動時被呼叫（用 game 改變遊戲）
+//   isConsumable → false：購買後立即呼叫 effect
+//                  true ：購買後放進背包（game.bag），之後使用時才呼叫 effect
+
+function onShopAtkUp()  { game.atk += 3; }
+function onShopDefUp()  { game.def += 3; }
+function onShopMaxHpUp(){ game.maxHp += 20; game.hp += 20; }
+function onShopHeal30() { game.hp += 30; }
+function onShopHeal80() { game.hp += 80; }
+
 var shopItems = [
-  // 永久升級
-  { name: "攻擊強化藥水", price: 25, effect: { atk:   3 }, desc: "攻擊力永久 +3",       isConsumable: false },
-  { name: "防禦強化藥水", price: 15, effect: { def:   3 }, desc: "防禦力永久 +3",       isConsumable: false },
-  { name: "生命強化藥水", price: 30, effect: { maxHp: 20}, desc: "最大 HP 永久 +20",    isConsumable: false },
-  { name: "血量恢復藥水", price: 10, effect: { hp:   30 }, desc: "立即回復 30 HP",      isConsumable: false },
-  { name: "大恢復藥水",   price: 25, effect: { hp:   80 }, desc: "立即回復 80 HP",      isConsumable: false },
-  //{ name: "速度藥水",     price: 25, effect: { spd:   10}, desc: "立即回復 80 HP",      isConsumable: false },
-  // 戰鬥消耗品（全部可指定我方任意成員）
-  { name: "攻擊爆發劑",   price: 18, effect: { tempAtk: 12 },
-    desc: "戰鬥中使用：指定對象本場 ATK +12",       isConsumable: true,  targetSide: "ally",  targetType: "single" },
-  { name: "鋼甲藥水",     price: 14, effect: { tempDef:  8 },
-    desc: "戰鬥中使用：指定對象本場 DEF +8",        isConsumable: true,  targetSide: "ally",  targetType: "single" },
-  { name: "狂暴藥水",     price: 22, effect: { tempAtk: 25, selfHp: -15 },
-    desc: "戰鬥中使用：指定對象 ATK +25，玩家損失 15 HP", isConsumable: true, targetSide: "ally", targetType: "single" },
-  { name: "治癒藥水",     price: 16, effect: { hp: 50 },
-    desc: "戰鬥中使用：指定對象回復 50 HP",         isConsumable: true,  targetSide: "ally",  targetType: "single" },
-  // 同伴相關
-  { name: "友軍復活藥水", price: 50, effect: { reviveAlly: true },
-    desc: "復活一名陣亡的同伴（恢復 50% HP）",      isConsumable: false, targetSide: "ally",  targetType: "single" }
+  { name: "攻擊強化藥水", price: 25, effect: onShopAtkUp,   desc: "攻擊力永久 +3",    isConsumable: false },
+  { name: "防禦強化藥水", price: 15, effect: onShopDefUp,   desc: "防禦力永久 +3",    isConsumable: false },
+  { name: "生命強化藥水", price: 30, effect: onShopMaxHpUp, desc: "最大 HP 永久 +20", isConsumable: false },
+  { name: "血量恢復藥水", price: 10, effect: onShopHeal30,  desc: "立即回復 30 HP",   isConsumable: false },
+  { name: "大恢復藥水",   price: 25, effect: onShopHeal80,  desc: "立即回復 80 HP",   isConsumable: false },
 ];
-
-
-// ── 同伴定義（商店招募，最多 2 人） ──────────────────────────
-var allyDefs = [
-  { id: "archer", name: "弓箭手", icon: "🏹", img: "assets/picture/弓箭手.png",
-    hp: 80, maxHp: 80, atk: 18, def: 3, spd: 12, price: 1, critChance: 0.5,
-    skill: { id: "volley",     name: "箭雨",   icon: "🌧️",
-             desc: "攻擊全體敵人各造成 ATK 點傷害（冷卻 3 回合）",
-             isAoe: true,  multiplier: 1, cooldown: 2, baseHit: 80 } },
-  { id: "wizard", name: "法師",   icon: "🧙", img: "assets/picture/法師.png",
-    hp: 55, maxHp: 55, atk: 22, def: 2, spd: 8, price: 100,
-    skill: { id: "blizzard",   name: "冰矛",   icon: "❄️",
-             desc: "對單體造成 ATK×2 點傷害（冷卻 3 回合）",
-             isAoe: false, multiplier: 2, cooldown: 3, baseHit: 85 } },
-  { id: "knight", name: "聖騎士", icon: "⚔️", img: "assets/picture/聖騎士.png",
-    hp: 130, maxHp: 130, atk: 14, def: 26, spd: 10, price: 100,
-    skill: { id: "holy_guard", name: "護衛",   icon: "🔰",
-             desc: "本回合替玩家承受敵人攻擊（以自身 DEF 減傷，冷卻 3 回合）",
-             isTaunt: true, multiplier: 0, cooldown: 3 } }
-];
-
-
-// ── 射擊小遊戲設定 ────────────────────────────────────────────
-var MG_TARGET         = 5;
-var MG_TIME           = 20;
-var MG_ENEMY_DURATION = 1500;
-var MG_SPAWN_INTERVAL = 1000;
-
-
-// ── 對話文本 ────────────────────────
-var dialogues = {
-  intro: [
-    { speaker: "旁白",   text: "黑暗魔王的詛咒籠罩了整片大地……" },
-    { speaker: "勇者",   text: "我一定要找到他，終結這一切！" }
-  ],
-  shop_first: [
-    { speaker: "商人",   text: "歡迎光臨！看看有什麼需要的吧。" }
-  ],
-  boss_pre: [
-    { speaker: "黑暗魔王", text: "你終於來了……我已等候多時。" },
-    { speaker: "勇者",     text: "今天就是你的末日！" }
-  ]
-};
