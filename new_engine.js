@@ -563,15 +563,10 @@ function closeSettings() {
   var overlay = document.getElementById("settings-overlay");
   if (overlay) overlay.style.display = "none";
   _unduckOverlay();
-  var onMap    = document.getElementById("screen-map")    && document.getElementById("screen-map").style.display    !== "none";
-  var onCombat = document.getElementById("screen-combat") && document.getElementById("screen-combat").style.display !== "none";
+  var onMap = document.getElementById("screen-map") && document.getElementById("screen-map").style.display !== "none";
   if (_tut.mazeEnabled && !_tut.mazeDone) {
     if (onMap) { setTimeout(tryShowMazeTutorial, 100); }
     else       { _tut.mazePending = true; }
-  }
-  if (_tut.combatEnabled && !_tut.combatIntroDone) {
-    if (onCombat) { setTimeout(tryShowCombatIntroTutorial, 100); }
-    else          { _tut.combatPending = true; }
   }
 }
 
@@ -3378,8 +3373,7 @@ function restartGame() {
   if (typeof _closeEndingPanel === "function") _closeEndingPanel();
   if (typeof _resetGameCustomProps === "function") _resetGameCustomProps();
   // 重置教學狀態（保留開關設定）
-  if (_tut.mazeEnabled)   { _tut.mazeDone = false; }
-  if (_tut.combatEnabled) { _tut.combatIntroDone = false; _tut.halfTokenDone = false; _tut.missDone = false; _tut.combatDone = false; }
+  if (_tut.mazeEnabled) { _tut.mazeDone = false; }
   gameOver = false;
   player.x = playerStart.x; player.y = playerStart.y;
   currentPlayer.level       = playerStats.level || 1;
@@ -3455,10 +3449,8 @@ function advanceDialogue() {
 //  教學系統
 // ============================================================
 var TUTORIAL_PAGES = [
-  { text: "探索迷宮並打敗最終魔王吧！",                         img: "assets/picture/黑暗巨龍.png" },
-  { text: "擊敗擋路的怪物，順便獲得金幣吧！",                   img: "assets/picture/哥布林.png" },
+  { text: "探索迷宮吧！踩到事件格會觸發各種事件", img: null },
   { text: "地圖上偶爾也會散落寶箱\n\n經過商店時順便進去看看吧", img: "assets/picture/寶箱.png" },
-  { text: "透過玩完小遊戲獲得鑰匙以抵達更深處",                  img: "assets/picture/小遊戲靶.png" },
   { text: "有時也會出現雙向傳送門\n靠著它去往隱藏地區吧",        img: null }
 ];
 
@@ -3558,48 +3550,20 @@ function _tutorialKeyHandler(e) {
 
 // ── 教學狀態 ──────────────────────────────────────────────
 var _tut = {
-  mazeEnabled   : true,   // 迷宮教學開關
-  combatEnabled : true,   // 戰鬥教學開關
-  mazeDone      : false,  // 已顯示過一次迷宮教學
-  mazePending   : false,  // 等待下次進入迷宮時觸發
-  combatIntroDone : false,  // 已顯示過戰鬥入場教學
-  combatPending   : false,  // 等待下次進入戰鬥時觸發
-  halfTokenDone   : false,  // 已顯示過半行動點教學
-  missDone        : false,  // 已顯示過 miss 教學
-  combatDone      : false,  // 已完成一次戰鬥（用於自動關閉戰鬥教學）
+  mazeEnabled   : false,  // 迷宮教學開關（預設關閉）
+  mazeDone      : false,
+  mazePending   : false,
 };
-
-// ── 教學頁面定義 ─────────────────────────────────────────
-var TUTORIAL_COMBAT_INTRO = [
-                              {text: "選擇行動，設法戰勝眼前的敵人吧！", img: null},
-                              {text: "每個行動都會黃色的是行動點，\n消耗完畢就是對方回合", img:"./assets/picture/行動點.png"}
-                            ];
-var TUTORIAL_HALF_TOKEN   = { text: "當觸發爆擊時\n可獲得額外一次行動機會！", img:"./assets/picture/額外行動.png" };
-var TUTORIAL_MISS         = { text: "若失手 Miss 了\n將額外喪失一次行動機會！", img: null };
 
 // ── 設定 toggle 更新 UI ───────────────────────────────────
 function _updateTutorialToggles() {
   var mb = document.getElementById("toggle-maze-tutorial");
-  var cb = document.getElementById("toggle-combat-tutorial");
   if (mb) { mb.textContent = _tut.mazeEnabled ? "開" : "關"; mb.classList.toggle("off", !_tut.mazeEnabled); }
-  if (cb) { cb.textContent = _tut.combatEnabled ? "開" : "關"; cb.classList.toggle("off", !_tut.combatEnabled); }
 }
 
 function toggleMazeTutorialSetting() {
   _tut.mazeEnabled = !_tut.mazeEnabled;
   if (_tut.mazeEnabled) _tut.mazeDone = false;  // 重新開啟時重置
-  _updateTutorialToggles();
-}
-
-function toggleCombatTutorialSetting() {
-  _tut.combatEnabled = !_tut.combatEnabled;
-  if (_tut.combatEnabled) {
-    // 重新開啟時重置所有戰鬥教學
-    _tut.combatIntroDone = false;
-    _tut.halfTokenDone   = false;
-    _tut.missDone        = false;
-    _tut.combatDone      = false;
-  }
   _updateTutorialToggles();
 }
 
@@ -3613,26 +3577,9 @@ function tryShowMazeTutorial() {
   showTutorial(TUTORIAL_PAGES);
 }
 
-// ── 戰鬥教學觸發 ─────────────────────────────────────────
-function tryShowCombatIntroTutorial() {
-  _tut.combatPending = false;
-  if (!_tut.combatEnabled || _tut.combatIntroDone) return;
-  _tut.combatIntroDone = true;
-  setTimeout(function() { showTutorial(TUTORIAL_COMBAT_INTRO); }, 200);
-}
-
-function tryShowHalfTokenTutorial() {
-  if (!_tut.combatEnabled || _tut.halfTokenDone) return;
-  _tut.halfTokenDone = true;
-  showTutorial([TUTORIAL_HALF_TOKEN]);
-}
-
-function tryShowMissTutorial() {
-  if (!_tut.combatEnabled || _tut.missDone) return;
-  if (currentAllies.filter(function(a){ return !a.knockedOut; }).length === 0) return; // 隊伍 <2
-  _tut.missDone = true;
-  showTutorial([TUTORIAL_MISS]);
-}
+function tryShowCombatIntroTutorial() {}
+function tryShowHalfTokenTutorial() {}
+function tryShowMissTutorial() {}
 
 function notifyShopClosed() {
   if (_shopOpen) { _shopOpen = false; _unduckOverlay(); }
