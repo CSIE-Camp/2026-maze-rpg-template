@@ -163,7 +163,7 @@ var game = new Proxy(_gameProxyTarget, {
         currentPlayer.hp = Math.max(0, Math.min(value, currentPlayer.maxHp));
         if (currentPlayer.hp < old) shakePlayer();
         updateHUD();
-        if (currentPlayer.hp <= 0) triggerGameOver();
+
         break;
       case "maxHp":
         currentPlayer.maxHp = Math.max(1, value);

@@ -2886,10 +2886,6 @@ function runNextEnemyTurn() {
         }
         if (fd > 0) { updatePlayerHp(-fd); showDamagePopup(_attacker.name, fd, true); }
       }, function() {
-        if (currentPlayer.hp <= 0) {
-          logMessage("💀 你被打倒了..."); playSound("defeat");
-          setTimeout(function() { triggerGameOver(); }, 1500); return;
-        }
         _afterEnemyAction();
       });
     })(attacker, dmg, taunt1);
@@ -2957,10 +2953,6 @@ function runNextEnemyTurn() {
         }
         if (fd > 0) { updatePlayerHp(-fd); showDamagePopup(cloneLabel, fd, true); }
       }, function() {
-        if (currentPlayer.hp <= 0) {
-          logMessage("💀 你被打倒了..."); playSound("defeat");
-          setTimeout(function() { triggerGameOver(); }, 1500); return;
-        }
         _afterEnemyAction();
       });
     })(dmg2, taunt2, res2);
@@ -3064,10 +3056,6 @@ function runNextEnemyTurn() {
         logMessage("⚠️ 你的攻擊力被壓制！接下來 2 回合僅有一半！");
       }
     }, function() {
-      if (currentPlayer.hp <= 0) {
-        logMessage("💀 你被打倒了..."); playSound("defeat");
-        setTimeout(function() { triggerGameOver(); }, 1500); return;
-      }
       _afterEnemyAction();
     });
   })(dmg, taunt3, res);
