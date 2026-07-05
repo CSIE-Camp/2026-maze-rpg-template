@@ -123,80 +123,6 @@
 
 
   <!-- ════════════════════════════════════════════════════
-       畫面 2：戰鬥畫面
-       ════════════════════════════════════════════════════ -->
-  <div id="screen-combat" style="display:none">
-
-    <div id="combat-field">
-      <button class="settings-btn" onclick="openSettings()" title="設定">
-      <img src="assets/picture/設定.png" alt="⚙️"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-      <span style="display:none;font-size:20px">⚙️</span>
-      </button>
-      <!-- 敵方名稱卡片（純名稱，HP 由每個 .enemy-unit 獨立顯示） -->
-      <div class="battle-info-card" id="combat-enemy-card">
-        <div class="battle-card-name" id="enemy-name">敵人名稱</div>
-      </div>
-
-      <!-- 動態敵人顯示區：由右向左排開，JS 以 renderEnemyUnits() 填入 -->
-      <div id="combat-enemies-area"></div>
-
-      <!-- 己方隊伍區（玩家 + 同伴，由 JS 以 renderPartyUnits() 填入） -->
-      <div id="combat-party-area"></div>
-
-    </div>
-
-    <div id="press-turn-display" style="display:none">
-      <div id="pt-player-tokens">玩家 ◆ ◆ ◆ ◆</div>
-      <div id="combat-hint"></div>
-      <div id="pt-enemy-tokens">敵人 ◆ ◆ ◆ ◆</div>
-    </div>
-
-    <div id="combat-panel">
-      <div id="combat-log"></div>
-
-      <!-- 己方全員 HP + 查看按鈕 -->
-      <div id="party-hp-row">
-        <div id="party-hp-area"></div>
-        <button class="btn btn-inspect" id="btn-inspect" onclick="showEnemyInfo()">📋 查看</button>
-      </div>
-
-      <!-- 統一行動區：只顯示當前行動角色的選擇 -->
-      <div id="party-action-area">
-        <!-- 查看敵人面板：absolute 覆蓋在行動區上方 -->
-        <div id="inspect-panel" style="display:none">
-          <div id="inspect-title"></div>
-          <div id="inspect-content"></div>
-          <button class="btn btn-defend" style="flex:none;padding:6px 14px" onclick="hideEnemyInfo()">關閉</button>
-        </div>
-
-        <!-- 玩家行動區：輪到玩家才顯示 -->
-        <div id="player-action-zone" style="display:none">
-          <div id="combat-buttons" class="no-scrollbar">
-            <button class="btn btn-attack"  id="btn-attack"  onclick="onAttack()">⚔️ 攻擊</button>
-            <button class="btn btn-defend"  id="btn-defend"  onclick="onDefend()">🛡️ 防禦</button>
-            <button class="btn btn-flee"    id="btn-flee"    onclick="onFlee()">💨 逃跑</button>
-            <button class="btn btn-pass"    id="btn-pass"    onclick="onPass()" style="display:none">⏸️ 待機</button>
-          </div>
-          <!-- 目標選擇面板 -->
-          <div id="target-select-panel" style="display:none">
-            <div id="target-select-title">選擇目標</div>
-            <div id="target-select-buttons"></div>
-            <button class="btn btn-flee" style="flex:none;padding:6px 14px" onclick="cancelTargetSelect()">✕ 取消</button>
-          </div>
-          <!-- 技能行動（由 renderSkillButtons 動態填入） -->
-          <div id="combat-skills" class="no-scrollbar"></div>
-          <!-- 背包消耗品（由 renderInventoryButtons 動態填入） -->
-          <div id="combat-items" class="no-scrollbar" style="display:none"></div>
-        </div>
-
-      </div>
-    </div>
-
-  </div>
-
-
-  <!-- ════════════════════════════════════════════════════
        畫面 3：商店畫面
        ════════════════════════════════════════════════════ -->
   <div id="screen-shop" style="display:none">
@@ -386,6 +312,7 @@
             <button class="btn dev-quick-btn" onclick="quickAddEvent('portal')">傳送門</button>
             <button class="btn dev-quick-btn" onclick="quickAddEvent('chest')">寶箱</button>
             <button class="btn dev-quick-btn" onclick="quickAddEvent('shop')">商店</button>
+            <button class="btn dev-quick-btn" onclick="quickAddEvent('battle')">小怪戰鬥</button>
           </div>
           <div class="dev-panel-hint">自動加入範本程式碼，並掛接在目前位置</div>
 

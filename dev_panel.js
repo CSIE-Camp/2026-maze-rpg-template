@@ -497,6 +497,48 @@ var DEV_QUICK_TEMPLATES = {
         "}"
       ].join("\n");
     }
+  },
+  battle: {
+    label: "小怪戰鬥", icon: "assets/picture/哥布林.png", color: "#b83030",
+    fns: ["onBattle", "battleAtk", "battleRun"],
+    code: function(n) {
+      return [
+        "function onBattle" + n + "() {",
+        '  var enemy = { name: "哥布林", hp: 30, atk: 5 };',
+        "",
+        "  function render() {",
+        "    game.panel =",
+        '      \'<div style="text-align:center">\' +',
+        "      '<h2>⚔️ ' + enemy.name + '</h2>' +",
+        "      '<p>敵人 HP：' + enemy.hp + '</p>' +",
+        "      '<p>你的 HP：' + game.hp + ' / ' + game.maxHp + '</p><hr>' +",
+        "      '<button class=\"btn btn-attack\" onclick=\"battleAtk" + n + "()\">⚔️ 攻擊</button> ' +",
+        "      '<button class=\"btn btn-flee\" onclick=\"battleRun" + n + "()\">💨 逃跑</button>' +",
+        "      '</div>';",
+        "  }",
+        "",
+        "  window.battleAtk" + n + " = function() {",
+        "    enemy.hp -= Math.max(1, game.atk - 2);",
+        "    if (enemy.hp <= 0) {",
+        "      game.money += 15;",
+        "      game.setTile(game.x, game.y, 0);",
+        '      game.panel = \'<div style="text-align:center"><h2>🎉 勝利！</h2><p>獲得 15 金幣</p>\' +',
+        "        '<button class=\"btn btn-attack\" onclick=\"game.panel=\\'\\';\">確定</button></div>';",
+        "      return;",
+        "    }",
+        "    game.hp -= enemy.atk;",
+        "    render();",
+        "  };",
+        "",
+        "  window.battleRun" + n + " = function() {",
+        '    game.message = "你逃跑了！";',
+        '    game.panel = "";',
+        "  };",
+        "",
+        "  render();",
+        "}"
+      ].join("\n");
+    }
   }
 };
 

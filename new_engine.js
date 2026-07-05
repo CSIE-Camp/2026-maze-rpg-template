@@ -181,24 +181,14 @@ var mgRunning      = false;
 
 // ── 工具函式 ──────────────────────────────────────────────────
 function showScreen(screenId) {
-  var screens = ["screen-map", "screen-combat", "screen-shop",
+  var screens = ["screen-map", "screen-shop",
                  "screen-minigame", "screen-dialogue",
                  "screen-gameover", "screen-clear"];
   for (var i = 0; i < screens.length; i++) {
     var el = document.getElementById(screens[i]);
     if (el) el.style.display = (screens[i] === screenId) ? "flex" : "none";
   }
-  // pending 教學：回到目標場景時觸發
-  if (screenId === "screen-map"    && _tut && _tut.mazePending)   { setTimeout(tryShowMazeTutorial,        150); }
-  if (screenId === "screen-combat" && _tut && _tut.combatPending) { setTimeout(tryShowCombatIntroTutorial, 150); }
-  if (screenId === "screen-combat") {
-    var sc = document.getElementById("screen-combat");
-    if (sc) {
-      sc.classList.remove("combat-enter");
-      void sc.offsetWidth;
-      sc.classList.add("combat-enter");
-    }
-  }
+  if (screenId === "screen-map" && _tut && _tut.mazePending) { setTimeout(tryShowMazeTutorial, 150); }
 }
 
 function playSound(name) {}
@@ -335,10 +325,8 @@ function renderMiniMap() {
   var TC = {};
   TC[MAP_TILE.EMPTY]      = "#2d4a7a";
   TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.ENEMY]      = "#b83030";
   TC[MAP_TILE.DOOR]       = "#604898";
   TC[MAP_TILE.MINI_GAME]  = "#1878b0";
-  TC[MAP_TILE.FINAL_BOSS] = "#880010";
   TC[MAP_TILE.EVENT]      = "#5a3890";
 
   for (var dy = -RADIUS; dy <= RADIUS; dy++) {
@@ -394,10 +382,8 @@ function renderMiniMapLarge() {
   var TC = {};
   TC[MAP_TILE.EMPTY]      = "#2d4a7a";
   TC[MAP_TILE.WALL]       = "#080d1a";
-  TC[MAP_TILE.ENEMY]      = "#b83030";
   TC[MAP_TILE.DOOR]       = "#604898";
   TC[MAP_TILE.MINI_GAME]  = "#1878b0";
-  TC[MAP_TILE.FINAL_BOSS] = "#880010";
   TC[MAP_TILE.EVENT]      = "#5a3890";
 
   for (var y = 0; y < rows; y++) {
@@ -1372,15 +1358,8 @@ function applyTileStyle(tile, tileType, x, y) {
   var sm = {};
   sm[MAP_TILE.WALL]       = { cls: "tile--wall",     src: "",                          alt: "",       emoji: ""   };
   sm[MAP_TILE.EMPTY]      = { cls: "tile--empty",    src: "",                          alt: "",       emoji: ""   };
-  var _enemySrc = "assets/picture/哥布林.png";
-  if (tileType === MAP_TILE.ENEMY && x !== undefined && y !== undefined) {
-    var _ed = _pickEnemy(x, y);
-    if (_ed && _ed.img) _enemySrc = _ed.img;
-  }
-  sm[MAP_TILE.ENEMY]      = { cls: "tile--enemy",    src: _enemySrc,                   alt: "敵人",   emoji: "👺" };
   sm[MAP_TILE.DOOR]       = { cls: "tile--door",     src: "assets/picture/門鎖.png"    ,alt: "門",    emoji: "🚪" };
   sm[MAP_TILE.MINI_GAME]  = { cls: "tile--minigame", src: "assets/picture/小遊戲靶.png",alt: "小遊戲", emoji: "🌀" };
-  sm[MAP_TILE.FINAL_BOSS] = { cls: "tile--boss",     src: "assets/picture/黑暗巨龍.png",alt: "魔王",   emoji: "👿" };
   // 寶箱(2)/商店(6)/傳送門(8) 不再是特殊地塊：未列入 sm，會落到下方 fallback 當作空地
 
   var info = sm[tileType];
@@ -1533,10 +1512,7 @@ function checkDialogueTriggers(x, y) {
 
 function checkTileEvent(x, y) {
   var t = currentMap[y][x];
-  if      (t === MAP_TILE.ENEMY)      triggerEnemy(x, y);
-  else if (t === MAP_TILE.MINI_GAME)  triggerMiniGame(x, y);
-  else if (t === MAP_TILE.FINAL_BOSS) triggerFinalBoss(x, y);
-  // 寶箱/商店/傳送門已改由事件地塊實作（見 docs/event-cookbook.md 與開發模式的快速加入）
+  if      (t === MAP_TILE.MINI_GAME)  triggerMiniGame(x, y);
   else if (t === MAP_TILE.EVENT && typeof dispatchCustomTileEvent === "function") {
     dispatchCustomTileEvent(x, y);
   }
@@ -1591,86 +1567,7 @@ function triggerChest(x, y) {
   renderMap();
 }
 
-function _pickEnemy(x, y) {
-  var key = y + "," + x;
-  if (tileEnemyMap && tileEnemyMap[key]) {
-    var name = tileEnemyMap[key];
-    for (var ei = 0; ei < enemies.length; ei++) {
-      if (enemies[ei].name === name) return enemies[ei];
-    }
-    console.warn("tileEnemyMap 指定的怪物「" + name + "」在 enemies 中找不到，改用隨機。");
-  }
-  var pool = enemies.slice();
-  if (pool.length === 0) return null;
-  var posRng = makeRng(SESSION_SEED + y * 1000 + x);
-  return pool[Math.floor(posRng() * pool.length)];
-}
 
-function playEncounterTransition(callback) {
-  if (typeof AudioSystem !== "undefined") AudioSystem.stopBgmNow();
-  var el = document.getElementById("encounter-transition");
-  if (!el) { playSound("sword"); callback(); return; }
-  el.style.display = "flex";
-  el.style.animation = "none";
-  var slash = el.querySelector(".encounter-slash");
-  if (slash) { slash.style.animation = "none"; }
-  void el.offsetWidth;
-  el.style.animation = "";
-  if (slash) slash.style.animation = "";
-  playSound("sword");
-  setTimeout(function() {
-    callback();
-    setTimeout(function() { el.style.display = "none"; }, 50);
-  }, 800);
-}
-
-function triggerEnemy(x, y) {
-  var ed = _pickEnemy(x, y);
-  if (!ed) {
-    currentMap[y][x] = MAP_TILE.EMPTY;
-    renderMap();
-    return;
-  }
-  activeClones = []; savedBoss = null; pairedFightEnemy = null;
-  bossClonePhase = { active: false, boss: null, clones: [] }; enemyCloneTurnCursor = 0;
-  currentEnemy = {
-    x: x, y: y,
-    name: ed.name, hp: ed.hp, maxHp: ed.maxHp,
-    atk: ed.atk,  def: ed.def, spd: ed.spd || 0, reward: ed.reward,
-    isMiniBarrier: ed.isMiniBarrier || false, img: ed.img || null
-  };
-
-  if (ed.isPaired) {
-    var companion = {
-      name: ed.name, hp: ed.hp, maxHp: ed.maxHp,
-      atk: ed.atk,  def: ed.def, spd: ed.spd || 0, reward: { money: 0 },
-      isMiniBarrier: ed.isMiniBarrier || false, img: ed.img || null
-    };
-    pairedFightEnemy = { x: x, y: y, reward: ed.reward, maxHp: ed.hp, name: ed.name };
-    activeClones = [currentEnemy, companion];
-  }
-
-  playEncounterTransition(function() { startCombat(); });
-}
-
-function triggerFinalBoss(x, y) {
-  activeClones = []; savedBoss = null; pairedFightEnemy = null;
-  bossClonePhase = { active: false, boss: null, clones: [] }; enemyCloneTurnCursor = 0;
-  currentEnemy = {
-    x: x, y: y,
-    name: finalBoss.name, hp: finalBoss.hp, maxHp: finalBoss.maxHp,
-    atk: finalBoss.atk,   def: finalBoss.def, spd: finalBoss.spd || 0, reward: finalBoss.reward,
-    isFinalBoss: true, img: finalBoss.img || null
-  };
-  playEncounterTransition(function() {
-    if (typeof dialogues !== "undefined" &&
-        dialogues.boss_pre && dialogues.boss_pre.length > 0) {
-      showDialogue(dialogues.boss_pre, function() { startCombat(); });
-    } else {
-      startCombat();
-    }
-  });
-}
 
 // ── 商店 ─────────────────────────────────────────────────────
 function triggerShop() {
@@ -1696,28 +1593,8 @@ function openShop() {
     h.textContent = title; list.appendChild(h);
   }
 
-  sec("🔧 永久道具");
-  shopItems.filter(function(it) { return !it.isConsumable; })
-           .forEach(function(it) { renderShopCard(it, list); });
-
-  sec("🧪 戰鬥消耗品（加入背包，戰鬥中手動使用）");
-  shopItems.filter(function(it) { return it.isConsumable; })
-           .forEach(function(it) { renderShopCard(it, list); });
-
-  sec("⚔️ 技能購買");
-  var buyable = skillDefs.filter(function(s) {
-    return s.type === "shop" && currentPlayer.skills.indexOf(s.id) === -1;
-  });
-  if (buyable.length === 0) {
-    var n = document.createElement("div"); n.className = "shop-card-desc"; n.style.padding = "6px 0";
-    n.textContent = "（已購買所有技能）"; list.appendChild(n);
-  } else {
-    buyable.forEach(function(s) { renderSkillCard(s, list); });
-  }
-
-  sec("🔮 技能合成");
-  skillDefs.filter(function(s) { return s.type === "craft"; })
-           .forEach(function(s) { renderCraftCard(s, list); });
+  sec("🔧 道具");
+  shopItems.forEach(function(it) { renderShopCard(it, list); });
 
   document.getElementById("shop-player-money").textContent = currentPlayer.money;
   renderShopSidebar();
@@ -1780,51 +1657,8 @@ function renderShopCard(item, container) {
   container.appendChild(card);
 }
 
-function renderSkillCard(skill, container) {
-  var card = document.createElement("div"); card.className = "shop-card shop-card--skill";
-  var left = document.createElement("div"); left.className = "shop-card-left";
-  var nm = document.createElement("div"); nm.className = "shop-card-name"; nm.textContent = skill.icon + " " + skill.name;
-  var ds = document.createElement("div"); ds.className = "shop-card-desc"; ds.textContent = computeSkillDesc(skill, currentPlayer.atk);
-  left.appendChild(nm); left.appendChild(ds);
-  var right = document.createElement("div"); right.className = "shop-card-right";
-  var pr = document.createElement("div"); pr.className = "shop-card-price"; pr.textContent = "💰 " + skill.price;
-  var btn = document.createElement("button"); btn.className = "btn btn-shop"; btn.textContent = "購買";
-  btn.onclick = function() { buySkill(skill); };
-  right.appendChild(pr); right.appendChild(btn);
-  card.appendChild(left); card.appendChild(right);
-  container.appendChild(card);
-}
-
-function renderCraftCard(skill, container) {
-  var card = document.createElement("div"); card.className = "shop-card shop-card--craft";
-  var owned  = currentPlayer.skills.indexOf(skill.id) !== -1;
-  var hasAll = skill.recipe.every(function(r) { return currentPlayer.skills.indexOf(r) !== -1; });
-
-  var left = document.createElement("div"); left.className = "shop-card-left";
-  var nm = document.createElement("div"); nm.className = "shop-card-name";
-  nm.textContent = skill.icon + " " + skill.name + (owned ? " ✅" : "");
-  var ds = document.createElement("div"); ds.className = "shop-card-desc"; ds.textContent = computeSkillDesc(skill, currentPlayer.atk);
-  var rc = document.createElement("div"); rc.className = "shop-card-recipe";
-  rc.textContent = "需要：" + skill.recipe.map(function(r) {
-    var d = getSkillDef(r); var have = currentPlayer.skills.indexOf(r) !== -1;
-    return (d ? d.name : r) + (have ? "✓" : "✗");
-  }).join(" + ");
-  left.appendChild(nm); left.appendChild(ds); left.appendChild(rc);
-
-  var right = document.createElement("div"); right.className = "shop-card-right";
-  var btn = document.createElement("button"); btn.className = "btn btn-shop";
-  if      (owned)  { btn.textContent = "已擁有"; btn.disabled = true; }
-  else if (hasAll) { btn.textContent = "合成！"; btn.onclick = function() { craftSkill(skill.id); }; }
-  else             { btn.textContent = "材料不足"; btn.disabled = true; }
-  right.appendChild(btn);
-  card.appendChild(left); card.appendChild(right);
-  container.appendChild(card);
-}
 
 function isStatCapped(item) {
-  if (item.effect.atk   && currentPlayer.atk   >= STAT_CAP.atk) return true;
-  if (item.effect.def   && currentPlayer.def   >= STAT_CAP.def) return true;
-  if (item.effect.maxHp && currentPlayer.maxHp >= STAT_CAP.hp)  return true;
   return false;
 }
 
@@ -1840,57 +1674,17 @@ function buyShopItem(item) {
   }
   updatePlayerMoney(-price);
   shopPurchaseCounts[item.name] = (shopPurchaseCounts[item.name] || 0) + 1;
-  if (!item.isConsumable) {
-    if (item.effect.reviveAlly) {
-      var deadAllies = currentAllies.filter(function(a) { return a.knockedOut; });
-      if (deadAllies.length === 0) { showShopMessage("目前沒有陣亡的同伴！"); return; }
-      var revived = deadAllies[0];
-      revived.hp = Math.max(1, Math.floor(revived.maxHp / 2));
-      revived.knockedOut = false;
-      showShopMessage("✨ 「" + revived.icon + " " + revived.name + "」已復活！（HP:" + revived.hp + "）");
-      document.getElementById("shop-player-money").textContent = currentPlayer.money;
-      return;
-    }
-    if (item.effect.allAllyAtk) {
-      if (currentAllies.length === 0) { showShopMessage("目前沒有同伴！"); return; }
-      for (var ai = 0; ai < currentAllies.length; ai++) currentAllies[ai].atk += item.effect.allAllyAtk;
-      showShopMessage("💪 所有同伴 ATK +" + item.effect.allAllyAtk + "！");
-      document.getElementById("shop-player-money").textContent = currentPlayer.money;
-      return;
-    }
-    if (item.effect.atk)   updatePlayerAtk(item.effect.atk);
-    if (item.effect.def)   updatePlayerDef(item.effect.def);
-    if (item.effect.hp)    updatePlayerHp(item.effect.hp);
-    if (item.effect.maxHp) {
-      currentPlayer.maxHp += item.effect.maxHp;
-      currentPlayer.hp     = Math.min(currentPlayer.hp + item.effect.maxHp, currentPlayer.maxHp);
-      updateHUD();
-    }
-    playSound("buy");
-    showShopMessage("購買了「" + item.name + "」！");
-  } else {
-    currentPlayer.inventory.push({ name: item.name, effect: item.effect, desc: item.desc, targetSide: item.targetSide, targetType: item.targetType });
+  if (item.effect.atk)   updatePlayerAtk(item.effect.atk);
+  if (item.effect.def)   updatePlayerDef(item.effect.def);
+  if (item.effect.hp)    updatePlayerHp(item.effect.hp);
+  if (item.effect.maxHp) {
+    currentPlayer.maxHp += item.effect.maxHp;
+    currentPlayer.hp     = Math.min(currentPlayer.hp + item.effect.maxHp, currentPlayer.maxHp);
     updateHUD();
-    renderBagSidebar();
-    playSound("buy");
-    showShopMessage("🎒 「" + item.name + "」已加入背包！戰鬥中可使用。");
   }
-  document.getElementById("shop-player-money").textContent = currentPlayer.money;
-}
-
-function buySkill(skill) {
-  if (currentPlayer.money < skill.price) {
-    showShopMessage("金幣不足！需要 " + skill.price + " 金幣。"); return;
-  }
-  if (currentPlayer.skills.indexOf(skill.id) !== -1) {
-    showShopMessage("你已經擁有「" + skill.name + "」了！"); return;
-  }
-  updatePlayerMoney(-skill.price);
-  currentPlayer.skills.push(skill.id);
   playSound("buy");
-  showShopMessage("✨ 習得技能「" + skill.icon + " " + skill.name + "」！");
+  showShopMessage("購買了「" + item.name + "」！");
   document.getElementById("shop-player-money").textContent = currentPlayer.money;
-  openShop();
 }
 
 function showShopMessage(msg) {
