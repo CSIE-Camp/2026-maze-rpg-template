@@ -997,6 +997,9 @@ function resetDevMap() {
   devPlayerStart = _extractStartFromGrid(devMapGrid, _originalPlayerStart);
   try { localStorage.removeItem(DEV_STORE_MAP); } catch (e) {}
   applyDevMap();
+  // 還原後也要刷新面板內的地圖預覽與匯出程式碼，否則畫面停在舊的編輯狀態
+  _renderDevMapGrid();
+  _renderMapExport();
   _setDevMapStatus("↩️ 已還原為原始地圖", false);
 }
 
