@@ -787,21 +787,25 @@ function _renderDevItemsBagList() {
       label.className = "dev-attach-label";
       label.textContent = name + " ×" + entry.qty + (entry.item.desc ? "（" + entry.item.desc + "）" : "");
 
-      var useBtn = document.createElement("button");
-      useBtn.className = "dev-bag-use";
-      useBtn.textContent = "使用";
-      useBtn.title = 'findIndex 找到「' + name + '」→ splice 移除 → 呼叫 effect()';
-      useBtn.onclick = function() {
-        // 原生寫法：找到 → 移除 → 呼叫 effect
-        var i = game.bag.findIndex(function(it) { return it.name === name; });
-        if (i !== -1) {
-          var item = game.bag[i];
-          game.bag.splice(i, 1);
-          game.message = "🧪 使用了「" + item.name + "」！";
-          if (typeof item.effect === "function") item.effect();
-        }
-        _renderDevItemsBagList();
-      };
+      // 沒有觸發（effect 不是函式）的物品不顯示「使用」按鈕
+      var useBtn = null;
+      if (typeof entry.item.effect === "function") {
+        useBtn = document.createElement("button");
+        useBtn.className = "dev-bag-use";
+        useBtn.textContent = "使用";
+        useBtn.title = 'findIndex 找到「' + name + '」→ splice 移除 → 呼叫 effect()';
+        useBtn.onclick = function() {
+          // 原生寫法：找到 → 移除 → 呼叫 effect
+          var i = game.bag.findIndex(function(it) { return it.name === name; });
+          if (i !== -1) {
+            var item = game.bag[i];
+            game.bag.splice(i, 1);
+            game.message = "🧪 使用了「" + item.name + "」！";
+            if (typeof item.effect === "function") item.effect();
+          }
+          _renderDevItemsBagList();
+        };
+      }
 
       var rmBtn = document.createElement("button");
       rmBtn.className = "dev-attach-remove";
@@ -815,7 +819,7 @@ function _renderDevItemsBagList() {
       };
 
       row.appendChild(label);
-      row.appendChild(useBtn);
+      if (useBtn) row.appendChild(useBtn);
       row.appendChild(rmBtn);
       list.appendChild(row);
     })(order[k], counts[order[k]]);

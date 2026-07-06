@@ -516,11 +516,14 @@ function renderBagSidebar() {
     top.innerHTML = "<span class='bag-row-name'>" + c.item.name + "</span>" +
                     "<span class='bag-row-qty'>× " + c.qty + "</span>";
 
-    var useBtn = document.createElement("button");
-    useBtn.className = "bag-row-use";
-    useBtn.textContent = "使用";
-    useBtn.onclick = function() { _bagUseItemByName(name); };
-    top.appendChild(useBtn);
+    // 沒有觸發（effect 不是函式）的物品不顯示「使用」按鈕
+    if (typeof c.item.effect === "function") {
+      var useBtn = document.createElement("button");
+      useBtn.className = "bag-row-use";
+      useBtn.textContent = "使用";
+      useBtn.onclick = function() { _bagUseItemByName(name); };
+      top.appendChild(useBtn);
+    }
 
     var desc = document.createElement("span");
     desc.className = "bag-row-desc";
