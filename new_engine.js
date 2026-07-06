@@ -3312,8 +3312,12 @@ function showDialogue(lines, callback) {
 
 function advanceDialogue() {
   if (dialogueQueue.length === 0) {
-    if (dialogueCallback) { var cb = dialogueCallback; dialogueCallback = null; cb(); }
-    else { showScreen("screen-map"); _flushPendingMapMessage(); }
+    // 先回到地圖，再跑 callback（相容舊寫法），最後補上暫存的 game.message。
+    // 這樣即使有掛 callback，也不會多要求玩家按一次「下一步」才關閉對話。
+    var cb = dialogueCallback; dialogueCallback = null;
+    showScreen("screen-map");
+    if (cb) cb();
+    _flushPendingMapMessage();
     return;
   }
   var line = dialogueQueue.shift();

@@ -37,20 +37,18 @@ function onMyTrap() {
 
 // ── 問題三：設計對話 NPC？（正在上廁所的哥布林） ─────────────
 function onToiletGoblin() {
-  showDialogue([
+  game.dialogue = [
     { speaker: "地下城城主", text: "或者……在角落放一些有生活感的對話 NPC？" },
     { speaker: "哥布林", text: "幹嘛？不要偷看！沒看過哥布林上廁所喔！出去啦！" },
     { speaker: "地下城城主", text: "呃，對不起……（順手撿起了地上的東西？）" }
-  ], function() {
-    game.message = "👜 獲得物品：【哥布林的羞恥】x1";
-    game.bag.push({
-      name: "哥布林的羞恥",
-      effect: null,
-      desc: "（為什麼羞恥心會是一個具象的物品啊...算了）"
-    });
-    game.setTile(game.x, game.y, 0);
+  ];
+  game.message = "👜 獲得物品：【哥布林的羞恥】x1"; // 對話結束後才顯示
+  game.bag.push({
+    name: "哥布林的羞恥",
+    effect: null,
+    desc: "（為什麼羞恥心會是一個具象的物品啊...算了）"
   });
-  
+  game.setTile(game.x, game.y, 0);
 }
 
 // ── 問題四：放很多怪物？（弱化皮史萊姆戰鬥） ──────────────────
