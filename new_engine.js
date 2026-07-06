@@ -3313,7 +3313,7 @@ function showDialogue(lines, callback) {
 function advanceDialogue() {
   if (dialogueQueue.length === 0) {
     if (dialogueCallback) { var cb = dialogueCallback; dialogueCallback = null; cb(); }
-    else showScreen("screen-map");
+    else { showScreen("screen-map"); _flushPendingMapMessage(); }
     return;
   }
   var line = dialogueQueue.shift();

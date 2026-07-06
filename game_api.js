@@ -6,7 +6,11 @@
 //  範例：
 //    game.hp -= 10;                 // 扣血（畫面會震動、血條會更新）
 //    game.money += 50;              // 加錢
-//    game.message = "你踩到陷阱了！"; // 在地圖上顯示訊息
+//    game.message = "你踩到陷阱了！"; // 在地圖上顯示訊息（對話進行中會等對話結束才顯示）
+//    game.dialogue = [               // 彈出一段對話（設定即播放）
+//      { speaker: "村民", text: "歡迎來到村莊！" },
+//      { speaker: "村民", text: "小心前面的陷阱喔。" }
+//    ];
 //    game.x = 5; game.y = 3;        // 把玩家傳送到 (5, 3)
 //    game.panel = "<h2>謎語</h2>…";  // 彈出自訂面板（放你自己的 HTML）
 //    game.panel = "";               // 關閉自訂面板
@@ -136,6 +140,23 @@ function _gameGetBag() {
   return _bagProxyCache;
 }
 
+// 對話進行中先暫存 game.message，等對話結束（回到地圖）再顯示，
+// 避免訊息在對話畫面背後悄悄淡出、玩家根本沒看到。
+var _pendingMapMessage = null;
+
+function _isDialogueActive() {
+  var s = document.getElementById("screen-dialogue");
+  return !!(s && s.style.display !== "none");
+}
+
+// 由 advanceDialogue 在對話結束、回到地圖時呼叫。
+function _flushPendingMapMessage() {
+  if (_pendingMapMessage == null) return;
+  var msg = _pendingMapMessage;
+  _pendingMapMessage = null;
+  if (typeof showMapMessage === "function") showMapMessage(msg);
+}
+
 var _gameProxyTarget = { message: "", panel: "" };
 
 // 重來時清除學員自訂屬性（message/panel 以外的所有 key）
@@ -198,7 +219,18 @@ var game = new Proxy(_gameProxyTarget, {
         break;
       case "message":
         target.message = value;
-        if (value) showMapMessage(value);
+        if (value) {
+          // 對話進行中先暫存，等對話結束回到地圖再顯示
+          if (_isDialogueActive()) _pendingMapMessage = value;
+          else if (typeof showMapMessage === "function") showMapMessage(value);
+        }
+        break;
+      case "dialogue":
+        // game.dialogue = [{ speaker, text }, ...] → 設定即播放一段對話
+        target.dialogue = value;
+        if (Array.isArray(value) && value.length && typeof showDialogue === "function") {
+          showDialogue(value);
+        }
         break;
       case "panel":
         target.panel = value;
