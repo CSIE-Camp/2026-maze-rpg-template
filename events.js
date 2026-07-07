@@ -62,7 +62,7 @@ function onSlimeBattle() {
         '<p>城主正在思考要不要放很多這種生物……</p>' +
         '<p>史萊姆 HP：' + enemy.hp + '</p>' +
         '<p>你的 HP：' + game.hp + ' / ' + game.maxHp + '</p><hr>' +
-        '<button class="btn btn-attack" onclick="battleAtk()">⚔️ 一拳揍扁</button> ' +
+        '<button class="btn" onclick="battleAtk()">⚔️ 一拳揍扁</button> ' +
       '</div>';
   }
 
@@ -73,7 +73,7 @@ function onSlimeBattle() {
       game.panel =
         '<div style="text-align:center"><h2>🎉 輕鬆獲勝！</h2>' +
         '<p>地下城城主：『這種怪是不是太沒挑戰性了啊？』</p>' +
-        '<button class="btn btn-attack" onclick="game.panel=\'\';">繼續前進</button></div>';
+        '<button class="btn" onclick="game.panel=\'\';">繼續前進</button></div>';
       return;
     }
     game.hp -= enemy.atk;

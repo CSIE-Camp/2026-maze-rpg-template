@@ -82,7 +82,6 @@ function _gameSetPanel(html) {
 
 function _bagRefreshUI() {
   if (typeof renderBagSidebar === "function") renderBagSidebar();
-  if (typeof renderShopSidebar === "function") renderShopSidebar();
   if (typeof _renderDevItemsBagList === "function") _renderDevItemsBagList();
 }
 
@@ -188,11 +187,8 @@ var game = new Proxy(_gameProxyTarget, {
   set: function(target, key, value) {
     switch (key) {
       case "hp":
-        var old = currentPlayer.hp;
         currentPlayer.hp = Math.max(0, Math.min(value, currentPlayer.maxHp));
-        if (currentPlayer.hp < old) shakePlayer();
         updateHUD();
-
         break;
       case "maxHp":
         currentPlayer.maxHp = Math.max(1, value);

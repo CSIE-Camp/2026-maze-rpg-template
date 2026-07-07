@@ -132,21 +132,10 @@ var AudioSystem = (function () {
   //
   //  畫面 ID 對照：
   //    "map"       → 主地圖畫面
-  //    "combat"    → 戰鬥畫面（一般敵人）
-  //    "shop"      → 商店畫面
-  //    "minigame"  → 射擊小遊戲
   //    "dialogue"  → 對話框（不切換，沿用前一首）
-  //    "gameover"  → 遊戲結束
-  //    "clear"     → 通關畫面
   // ============================================================
   var SITUATION_BGM = {
     map      : "map",
-    combat   : "battle1",  // 一般戰鬥 → battle BGM
-    boss     : "boss",     // ← 此項由 triggerFinalBoss 另行觸發
-    shop     : "map",   // 與迷宮同一首，接續播放不重啟
-    minigame : "minigame",
-    gameover : "gameover",
-    clear    : "clear",
     dialogue : null        // null = 不切換，保持當前 BGM
   };
 
@@ -538,7 +527,6 @@ function playSound(name) {
 //  每次切換畫面時根據 SITUATION_BGM 表決定播哪首 BGM。
 //
 //  特殊處理：
-//    "screen-combat" → 若遇到 Final Boss，改播 "boss" BGM
 //    "screen-dialogue" → 維持當前 BGM 不切換
 // ============================================================
 (function () {
@@ -552,14 +540,6 @@ function playSound(name) {
 
     // 取出去掉 "screen-" 前綴的情境名稱
     var situation = screenId.replace("screen-", "");
-
-    // 戰鬥畫面：判斷是否為 Boss 戰
-    if (situation === "combat") {
-      if (typeof currentEnemy !== "undefined" &&
-          currentEnemy !== null && currentEnemy.isFinalBoss) {
-        situation = "boss";
-      }
-    }
 
     AudioSystem.playBgmForSituation(situation);
   };
