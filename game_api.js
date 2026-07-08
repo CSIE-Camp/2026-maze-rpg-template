@@ -80,9 +80,15 @@ function _gameSetPanel(html) {
 //   game.bag = [];                   // 清空背包
 // 任何修改（push / splice / 指定元素…）都會自動更新背包畫面。
 
+var _bagRefreshScheduled = false;
 function _bagRefreshUI() {
-  if (typeof renderBagSidebar === "function") renderBagSidebar();
-  if (typeof _renderDevItemsBagList === "function") _renderDevItemsBagList();
+  if (_bagRefreshScheduled) return;
+  _bagRefreshScheduled = true;
+  Promise.resolve().then(function() {
+    _bagRefreshScheduled = false;
+    if (typeof renderBagSidebar === "function") renderBagSidebar();
+    if (typeof _renderDevItemsBagList === "function") _renderDevItemsBagList();
+  });
 }
 
 // （引擎內部）背包側欄「使用」按鈕呼叫這個函式。

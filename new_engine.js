@@ -276,6 +276,7 @@ function renderBagSidebar() {
   }
   var counts = {};
   for (var i = 0; i < inv.length; i++) {
+    if (!inv[i]) continue;
     var n = inv[i].name;
     if (!counts[n]) counts[n] = { item: inv[i], qty: 0 };
     counts[n].qty++;
