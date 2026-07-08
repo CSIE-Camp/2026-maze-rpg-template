@@ -998,7 +998,10 @@ body {
 /* ── 地圖編輯分頁 ─────────────────────────────────────────── */
 #dev-map-left {
   display: flex; flex-direction: column; gap: 10px;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 #dev-map-grid {
   display: grid;
