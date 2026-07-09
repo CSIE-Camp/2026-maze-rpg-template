@@ -62,10 +62,6 @@
                 <span class="side-resource-label">💰 金幣</span>
                 <span id="hud-money">0</span>
               </div>
-              <div class="side-resource-row">
-                <button class="btn btn-side-action btn-side-shop" id="btn-open-shop"
-                      onclick="openShopFromHUD()" style="display:none">🛒 商店</button>
-              </div>
             </div>
             <div id="side-actions">
               <button class="btn btn-side-action btn-side-code" id="btn-open-code" onclick="window.open('https://github.com/CSIE-Camp/2026-maze-rpg-template','_blank')">💻 程式碼</button>
@@ -116,39 +112,6 @@
 
 
   <!-- ════════════════════════════════════════════════════
-       畫面 3：商店畫面
-       ════════════════════════════════════════════════════ -->
-  <div id="screen-shop" style="display:none">
-
-    <div id="shop-layout">
-
-      <!-- 左側：商店主體 -->
-      <div id="shop-box">
-        <h2 id="shop-title">🛒 商店</h2>
-        <div id="shop-message"></div>
-        <div id="shop-item-list">
-          <!-- 由 engine.js 動態產生 -->
-        </div>
-        <button class="btn btn-close" onclick="closeShop()">離開商店</button>
-      </div>
-
-      <!-- 右側：金幣 + 隊伍狀態 + 背包 -->
-      <div id="shop-sidebar">
-        <div id="shop-money-display">
-          💰 金幣：<span id="shop-player-money">0</span> 枚
-        </div>
-        <div class="shop-sidebar-title">背包道具</div>
-        <div id="shop-inventory-list">
-          <!-- 由 engine.js 動態產生 -->
-        </div>
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- ════════════════════════════════════════════════════
        畫面 5：對話框
        ════════════════════════════════════════════════════ -->
   <div id="screen-dialogue" style="display:none">
@@ -157,56 +120,6 @@
       <p id="dialogue-text-content"></p>
       <button class="btn btn-dialogue-next" onclick="advanceDialogue()">下一頁 ▶</button>
     </div>
-  </div>
-
-
-  <!-- ════════════════════════════════════════════════════
-       畫面 6：Game Over
-       ════════════════════════════════════════════════════ -->
-  <div id="screen-gameover" style="display:none">
-    <div id="gameover-box">
-      <h1>💀 Game Over</h1>
-      <p>你在迷宮中倒下了...</p>
-      <button class="btn btn-restart" onclick="restartGame()">🔄 再試一次</button>
-    </div>
-  </div>
-
-
-  <!-- ════════════════════════════════════════════════════
-       畫面 7：通關
-       ════════════════════════════════════════════════════ -->
-  <div id="screen-clear" style="display:none">
-    <div id="clear-box">
-      <h1>🎉 恭喜通關！</h1>
-      <p>你擊敗了黑暗魔王，拯救了世界！</p>
-      <button class="btn btn-restart" onclick="restartGame()">🔄 再玩一次</button>
-    </div>
-  </div>
-
-
-  <!-- ════════════════════════════════════════════════════
-       教學 Overlay
-       ════════════════════════════════════════════════════ -->
-  <div id="tutorial-overlay" style="display:none">
-    <div id="tutorial-mask"></div>
-    <div id="tutorial-card">
-      <button id="tutorial-skip-btn" onclick="skipTutorial()">跳過 ✕</button>
-      <div id="tutorial-img-wrap">
-        <img id="tutorial-img" src="" alt="" style="display:none">
-      </div>
-      <div id="tutorial-text"></div>
-      <div id="tutorial-footer">
-        <div id="tutorial-dots"></div>
-        <button id="tutorial-next-btn" onclick="nextTutorialPage()">下一頁 ▶</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ════════════════════════════════════════════════════
-       戰鬥過場動畫
-       ════════════════════════════════════════════════════ -->
-  <div id="encounter-transition" style="display:none">
-    <div class="encounter-slash"></div>
   </div>
 
 
@@ -460,24 +373,10 @@
   <script src="new_engine.js"></script>
   <script src="audio.js"></script>
   <script src="game_api.js"></script>
+  <script src="listeners.js"></script>
   <script src="dev_panel.js"></script>
   <script src="events.js"></script>
   <script src="endings.js"></script>
-
-  <script>
-    function openShopFromHUD() {
-      if (shopUnlocked) openShop();
-    }
-
-    function closeShop() {
-      showScreen("screen-map");
-      if (shopUnlocked) {
-        document.getElementById("btn-open-shop").style.display = "block";
-      }
-      renderMap();
-      if (typeof notifyShopClosed === "function") notifyShopClosed();
-    }
-  </script>
 
   <!-- ════════════════════════════════════════════════════
        設定 Overlay
@@ -511,13 +410,6 @@
           <div class="vol-fill" id="sfx-fill"></div>
           <div class="vol-thumb" id="sfx-thumb"></div>
         </div>
-      </div>
-
-      <!-- 迷宮教學開關 -->
-      <div class="settings-block settings-toggle-block">
-        <span class="settings-toggle-label">🗺️ 迷宮教學</span>
-        <button id="toggle-maze-tutorial" class="settings-toggle-btn"
-                onclick="toggleMazeTutorialSetting()">開</button>
       </div>
 
       <button class="btn btn-minimap-close" onclick="closeSettings()"
