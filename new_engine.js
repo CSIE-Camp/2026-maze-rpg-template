@@ -102,11 +102,11 @@ function updateHUD() {
 }
 
 function _miniMapTileColor(code) {
-  if (code === MAP_TILE.WALL) return "#080d1a";
-  if (code === MAP_TILE.EMPTY || code === MAP_TILE.START) return "#2d4a7a";
+  if (code === MAP_TILE.WALL) return "#0a0f1e";
+  if (code === MAP_TILE.EMPTY || code === MAP_TILE.START) return "#1e2a45";
   var def = (typeof tileDefs !== "undefined") ? tileDefs[code] : null;
   if (def && def.color) return def.color;
-  return DEV_MODE ? "#e02020" : "#2d4a7a";
+  return DEV_MODE ? "#e02020" : "#1e2a45";
 }
 
 function renderMiniMap() {
